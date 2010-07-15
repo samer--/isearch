@@ -1,57 +1,107 @@
-.search {
+body {
+	font-family:"Lucida Grande","Tahoma","Helvetica","Arial",sans-serif;
+	font-color: #222;
+	font-size: 12px;
+}
+
+a,
+a:visited {
+	color: #0000EE;
+} 
+
+#search {
 	margin: 10px 5px;
 }
-.search .btn {
+#search .btn {
 	background:none repeat scroll 0 0 transparent;
 	font-size:15px;
 	height:30px;
 	margin:0;
 	vertical-align:top;
 }
-.search .inp {
+#search .inp {
 	font-size:18px;
 	width:20em;
 }
 
-.left {
+.toggle a {
+	text-decoration: none;
+}
+#left .toggle {
+	text-align: right;
+}
+#left {
 	float: left;
-	margin: 0 5px;
-	width: 140px;
+	margin-right: 5px;
+}
+#left .body {
+	width: 14em;
 }
 
-.count {
-	float: right;
+#right {
+	float: left;
+	margin-left: 5px;
+}
+#right .body {
+	width: 16em;
 }
 
-.header {
-	font-size: 90%;
-	padding-bottom: 5px;
+
+#results {
+	float: left;
+	border-width: 0 1px;
+	border-style: solid;
+	border-color: #CCC;
+	padding: 0 5px;
 }
 
-.left ul {
+.column .term {
+	clear: both;
+}
+.column .count {
+	float: left;
+	width: 2em;
+	text-align: right;
+	color: #AAA;
+}
+.column .label {
+	padding-left: 2.5em;
+}
+
+.column ul {
 	margin: 0;
 	padding: 0;
 	font-size: 95%;
 }
-.left li {
-	padding: 3px 5px;
+.column li {
+	padding: 2px 0;
 	margin: 0;
 	list-style: none;
 }
-.left .selected,
-.left .selected a {
-	background-color: #0000EE;
-	color: #FFF;
+.column a {
+	color: black;
+}
+.column .selected a {
+	font-weight: bold;
 }
 
-.left li a {
+.column li a {
 	text-decoration: none;
 }
 
+.facet,
 .related {
-	border-top:1px solid #AAAAAA;
 	margin-top:10px;
 	padding-top:5px;
+}
+
+.column .header {
+	border-bottom:1px solid #CCC;
+	padding-bottom: 3px;
+}
+
+#results .header {
+	padding-bottom: 15px;
 }
 
 .paginator {
@@ -66,25 +116,34 @@
 	text-decoration: none;
 }
 .paginator .active a {
-	color: #BBB;
-	border-color: #BBB;
-}
-
-.results {
-	border-left: 1px solid #CCC;
-	padding: 0 5px;
-	overflow: auto;
+	color: #CCC;
+	border-color: #CCC;
 }
 
 .result-item {
-	float: left;
-	margin: 0 10px 10px;
+	margin-bottom: 20px;
+	overflow: auto;
 }
-.thumbnail {
-	width: 150px;
-	height: 150px;
+.result-item .title {
+	overflow: auto;
+	margin-bottom: 3px;
+}
+.result-item .thumbnail {
+	max-width: 125px;
+	max-height: 125px;
 	overflow: hidden;
+	float: left;
+	margin-right: 10px;
 }
-.thumbnail img {
+.result-item .thumbnail img {
 	width: 100%;
+}
+.result-item .subtitle {
+
+}
+.result-item .description {
+	font-size: 90%;
+}
+.result-item .text {
+	max-width: 600px;
 }

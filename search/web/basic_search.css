@@ -41,14 +41,19 @@
 }
 
 .result-item {
-	float: left;
-	margin: 0 10px 10px;
+	margin-bottom: 10px;
+	overflow: auto;
 }
-.thumbnail {
+.result-item .thumbnail {
 	width: 150px;
 	height: 150px;
 	overflow: hidden;
+	float: left;
+	margin-right: 10px;
 }
-.thumbnail img {
+.result-item .thumbnail img {
 	width: 100%;
+}
+.result-item .text {
+	max-width: 600px;
 }
