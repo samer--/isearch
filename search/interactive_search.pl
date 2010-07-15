@@ -62,20 +62,30 @@ interactive_search_page(Request) :-
 	list_limit(Rs1, Limit, Results, _),
 
 	% emit html page
-	reply_html_page(title(['Search results for ',Query]),
+	reply_html_page([ title(['Search results for ',Query]),
+			  script(type('text/javascript'),
+				 \js_toggle)
+			],
 			[  \html_requires(css('interactive_search.css')),
 			   div(class(search),
-			       \search_field(Query, Class)),
-			   div(class(left),
+			       \search_field(Query, Class)
+			      ),
+			   div(a([id(ltoggle),href('#'),
+				  onClick('javascript:bodyToggle(\'ltoggle\',\'left\', [\'<\',\'>\']);')
+				 ], '<')),
+			   div([id(left), class(left)],
 			       [ \html_term_list(MatchingTerms, Query, Class, Term),
-			         \html_related_term_list(RelatedTerms, Query, Class, Term, Related)]),
+				 \html_related_term_list(RelatedTerms, Query, Class, Term, Related)
+			       ]),
 			   div(class(results),
 			      [ div(class(header),
-				  \html_result_header(Query, Term, Related, Class, NumberOfResults)),
+				  \html_result_header(Query, Term, Related, Class, NumberOfResults)
+				   ),
 				\html_result_list(Results)
 			      ]),
 			  div(class(paginator),
-			      \html_paginator(NumberOfResults, Offset, Limit))
+			      \html_paginator(NumberOfResults, Offset, Limit)
+			     )
   			]).
 
 terms_in_paths([], []).
@@ -237,11 +247,23 @@ html_term_list(Terms, Query, Class, Term) -->
 	  URL = URL0+'?q='+Query+'&class='+Class+'&term='
 	},
 	html(div(class(matches),
-		 [ div(class(items),
+		 [
+		   div(id(mitems),
 		       [ ul([\all_link(Term, URL),
-			     \term_list(TopN, Term, URL)]),
-			 ul([style('display:none')], \term_list(Rest, Term, URL))])
+			     \term_list(TopN, Term, URL)
+			    ]),
+			 \term_list_rest(Rest, Term, URL)
+		       ])
 		 ])).
+
+term_list_rest([], _, _) --> !.
+term_list_rest(Rest, Term, URL) -->
+	html([ul([id(tbody),style('display:none')], \term_list(Rest, Term, URL)),
+	      div(a([id(ttoggle),href('#'),
+		     onClick('javascript:bodyToggle(\'ttoggle\',\'tbody\', [\'less\',\'more\']);')
+		    ], 'more'))
+	     ]).
+
 
 all_link(Term, URL) -->
 	{ nonvar(Term) },
@@ -272,13 +294,18 @@ term_list([H|T], Active, URL) -->
 term_count(Count-Term, Term, Count).
 term_count(Term, Term, '').
 
-%%	html_related_term_list(+Groups, +Query, +Class, +ActiveTerm)
+%%	html_related_term_list(+Groups, +Query, +Class, +ActiveTerm,
+%%	+ActiveRelated)
 %
 %	Emit HTML list with terms.
 
-html_related_term_list([], _, _, _, _) --> !.
-html_related_term_list([P-Terms|T], Query, Class, Term, Related) -->
-	{ list_limit(Terms, 3, TopN, Rest),
+html_related_term_list(Groups, Query, Class, Term, Related) -->
+	related_term_list(Groups, Query, Class, Term, Related, 0).
+
+related_term_list([], _, _, _, _, _) --> !.
+related_term_list([P-Terms|T], Query, Class, Term, Related, N) -->
+	{ N1 is N+1,
+	  list_limit(Terms, 3, TopN, Rest),
 	  rdfs_label(P, PLabel),
 	  http_location_by_id(interactive_search_page, URL0),
 	  URL = URL0+'?q='+Query+'&class='+Class+'&term='+Term+'&related='
@@ -287,10 +314,39 @@ html_related_term_list([P-Terms|T], Query, Class, Term, Related) -->
 		 [ div(class(header), PLabel),
 		   div(class(items),
 		       [ ul(\term_list(TopN, Term, URL)),
-			 ul([style('display:none')], \term_list(Rest, Related, URL))])
+			 \related_term_list_rest(Rest, Related, URL, N)
+ 		       ])
 		 ])),
-	html_related_term_list(T, Query, Class, Term, Related).
+	related_term_list(T, Query, Class, Term, Related, N1).
 
+related_term_list_rest([], _, _, _) --> !.
+related_term_list_rest(Rest, Related, URL, N) -->
+	html([ul([id(rbody+N),style('display:none')], \term_list(Rest, Related, URL)),
+	      div(a([id(rtoggle+N),href('#'),
+		     onClick('javascript:bodyToggle(\'rtoggle'+N+'\',\'rbody'+N+'\',[\'less\',\'more\']);')
+		    ], 'more'))
+	     ]).
+
+
+%%	js_toggle
+%
+%	Emit javascript function to toggle display of an element.
+
+js_toggle -->
+	html(\[
+'function bodyToggle(toggleId, containerId, labels) {\n',
+'    var elContainer = document.getElementById(containerId),
+	 elToggle = document.getElementById(toggleId);\n',
+'    if(elContainer.style.display === "none") {
+         elContainer.style.display = "block";
+	 elToggle.innerHTML = labels[0];
+     }\n',
+'    else {
+	  elContainer.style.display = "none";
+	   elToggle.innerHTML = labels[1];
+     }',
+'}\n'
+	     ]).
 
 		 /*******************************
 	         *	 collect results        *
@@ -372,9 +428,6 @@ equivalent_property(P) :-
 	rdf_equal(P, skos:exactMatch).
 
 
-
-
-
 		 /*******************************
 		 *	    utilities		*
 		 *******************************/
@@ -396,7 +449,6 @@ request_url_components(Request, [ protocol(http),
 	;   option(path(Path), Request, /)
 	),
 	option(search(Search), Request, []).
-
 
 %%	pairs_sort_by_value_count(+Pairs:key-list,
 %%	-Sorted:listcount-key)
