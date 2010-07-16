@@ -8,9 +8,21 @@ a,
 a:visited {
 	color: #0000EE;
 } 
+a img {
+	border: none;
+}
 
+#logo {
+	float: left;
+	width: 14em;
+	margin-right: 5px;
+}
+#logo img {
+	max-width: 100%;
+}
 #search {
-	margin: 10px 5px;
+	padding-left: 14em;
+	margin: 10px 5px 25px 10px;
 }
 #search .btn {
 	background:none repeat scroll 0 0 transparent;
@@ -46,47 +58,52 @@ a:visited {
 	width: 16em;
 }
 
-
 #results {
 	float: left;
 	border-width: 0 1px;
 	border-style: solid;
 	border-color: #CCC;
-	padding: 0 5px;
+	padding: 0 10px;
 }
 
-.column .term {
-	clear: both;
+ul.resource-list {
+	margin: 0;
+	padding: 0;
+	font-size: 95%;
 }
-.column .count {
+ul.resource-list li {
+	padding: 2px 0;
+	margin: 0;
+	list-style: none;
+	cursor: pointer;
+}
+.resource-list .selected {
+	font-weight: bold;
+}
+.resource-list li:hover .label {
+	text-decoration: underline;
+}
+.resource-list .count {
 	float: left;
 	width: 2em;
 	text-align: right;
 	color: #AAA;
 }
-.column .label {
+.resource-list .value-inner {
 	padding-left: 2.5em;
 }
-
-.column ul {
-	margin: 0;
-	padding: 0;
-	font-size: 95%;
-}
-.column li {
-	padding: 2px 0;
-	margin: 0;
-	list-style: none;
-}
-.column a {
-	color: black;
-}
-.column .selected a {
-	font-weight: bold;
+.resource-list .checkbox {
+	padding-left: 0.5em;
+	float: right;
 }
 
-.column li a {
-	text-decoration: none;
+#relations {
+	overflow: auto;
+}
+#relation .header,
+#relations .resource-list li {
+	padding: 2px 2px 0;
+	float: left;
 }
 
 .facet,
@@ -106,7 +123,7 @@ a:visited {
 
 .paginator {
 	text-align: center;
-	margin-top: 10px
+	margin: 10px 0 20px;
 }
 .paginator a {
 	border:1px solid #0000EE;
@@ -121,6 +138,7 @@ a:visited {
 }
 
 .result-item {
+	max-width: 600px;
 	margin-bottom: 20px;
 	overflow: auto;
 }
@@ -145,5 +163,4 @@ a:visited {
 	font-size: 90%;
 }
 .result-item .text {
-	max-width: 600px;
 }
