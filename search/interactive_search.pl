@@ -714,8 +714,11 @@ script_relation_select(Id) -->
 script_facet_select(Id) -->
 	html(\[
 'Y.delegate("click", function(e) {\n',
-'  var value = Y.JSON.parse(e.currentTarget.get("title")),
-       property = e.currentTarget.get("parentNode").get("parentNode").get("title"),
+'  var value = e.currentTarget.get("title");
+   if(value.substr(0,1)=="{") {
+      value = Y.JSON.parse(value);
+   }\n',
+'  var property = e.currentTarget.get("parentNode").get("parentNode").get("title"),
        filter = updateFilter(data.filter, property, value),
        params = makeParameters({q:data.q,class:data.class,term:data.terms,filter:filter});\n',
 ' window.location.href = data.url+"?"+params;\n',
