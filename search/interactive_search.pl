@@ -644,7 +644,7 @@ script_data(Query, Class, Terms, Relations, Filter) -->
 'var data = ',Data,';\n',
 'var update = function(a, e) {
   for(var i=0; i<a.length; i++) {
-     if(a[i]==e||a[i].literal==e.literal) { a.splice(i,1); return a; }
+     if(a[i]==e||(a[i].literal&&a[i].literal==e.literal)) { a.splice(i,1); return a; }
   }
   a.push(e);
   return a;
