@@ -98,10 +98,8 @@ ul.resource-list li {
 	float: right;
 }
 
-#relations {
-	overflow: auto;
-}
-#relations .header,
+.relations-header,
+#relations .toggle-button,
 #relations .resource-list li {
 	padding: 2px 2px 0;
 	float: left;
@@ -119,6 +117,7 @@ ul.resource-list li {
 }
 
 #results .header {
+	overflow: auto;
 	padding-bottom: 15px;
 }
 
@@ -139,6 +138,7 @@ ul.resource-list li {
 }
 
 .result-item {
+	clear: both;
 	max-width: 600px;
 	margin-bottom: 20px;
 	overflow: auto;

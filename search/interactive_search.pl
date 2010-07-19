@@ -73,8 +73,10 @@ interactive_search_page(Request) :-
 start_page(Class) :-
 	reply_html_page(title('Search'),
 			[  \html_requires(css('interactive_search.css')),
-			   div(id(search),
-			       \search_field('', Class))
+			   div([style('margin-top:10em')],
+				[ div([style('text-align:center')], \logo),
+				  div([style('text-align:center;padding:0'), id(search)],
+				      \search_field('', Class))])
 			]).
 
 %%	result_page(+Query, +Terms, +Class, +Relations, +Filter,
@@ -496,9 +498,11 @@ html_relation_list(Relations, Selected, NumberOfResults) -->
 	  list_limit(Relations, Limit, TopN, Rest)
  	},
 	html(div(id(relations),
-		 [ div(class(header), [NumberOfResults, ' result found by: ']),
-		   \resource_list(TopN, Selected),
-		   \resource_rest_list(Rest, relation, Selected)
+		 [ div(class('relations-header'), [NumberOfResults, ' result found by: ']),
+		   div(class('relations-content'),
+		       [ \resource_list(TopN, Selected),
+			 \resource_rest_list(Rest, relation, Selected)
+		       ])
 		 ])).
 
 %%	html_facets(+Facets, +Query, +Class, +Term, +Filter)
@@ -544,12 +548,13 @@ resource_rest_list(Rest, Id, Selected) -->
 	  )
 	},
 	html([ul([id(Id+body),
-		  class('resource-list'),
+		  class('resource-list toggle-body'),
 		  style(Display)
 		 ],
-		 \resource_list(Rest, Selected)
+		 \resource_items(Rest, Selected)
 		),
-	      div(a([id(Id+toggle),href('javascript:void()'),
+	      div(class('toggle-button'),
+		  a([id(Id+toggle), href('javascript:void()'),
 		     onClick('javascript:bodyToggle(\''+Id+'toggle\',\''+Id+'body\',
 						    [\'less\',\'more\']);')
 		    ], Label))
