@@ -269,9 +269,9 @@ filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
 	filter_to_goal(T, R, Rest).
 
 pred_filter([Value], P, R, Goal) :- !,
-	Goal = rdf(R, P, Value).
+	Goal = rdf_has(R, P, Value).
 pred_filter([Value|Vs], P, R, Goal) :-
-	Goal =  (rdf(R, P, Value); Rest),
+	Goal =  (rdf_has(R, P, Value); Rest),
 	pred_filter(Vs, P, R, Rest).
 
 %%	related_term(+Resource, +Class, -Term, -P)
@@ -312,8 +312,9 @@ related(S, O, P) :-
 
 facets(Results, Filter, AllResults, Facets) :-
  	bagof(facet(P, Values, []),
-	      (	  facet_values(P, Results, true, _, Values),
-		  \+ memberchk(prop(P,_), Filter)
+	      (	  facet_values(P, Results, Values),
+ 		  \+ memberchk(prop(P,_), Filter),
+		  \+ exclude_property(P)
 	      ),
 	      Facets0),
 	findall(facet(P, Values, Selected),
@@ -323,17 +324,35 @@ facets(Results, Filter, AllResults, Facets) :-
 		),
 		ActiveFacets),
  	append(ActiveFacets, Facets0, Facets).
-
+facet_values(P, Results, ResultsByValue) :-
+	bagof(V-Rs,
+	      bagof(R,
+		    ( member(R, Results),
+		      facet_property(R, P, V)
+  		    ),
+		    Rs
+		   ),
+	      ResultsByValue).
 facet_values(P, Results, Goal, R, ResultsByValue) :-
 	bagof(V-Rs,
 	      bagof(R,
 		    ( member(R, Results),
-		      rdf(R, P, V),
+		      rdf_has(R, P, V),
 		      Goal
 		    ),
 		    Rs
 		   ),
 	      ResultsByValue).
+
+facet_property(S, P, V) :-
+	rdf(S, P0, V),
+	once((rdf_reachable(P0, rdfs:subPropertyOf, P),
+	      \+ rdf(P, rdfs:subPropertyOf, _))).
+
+exclude_property(P) :- rdf_equal(rdf:type, P).
+exclude_property(P) :- rdf_equal(dc:title, P).
+exclude_property(P) :- rdf_equal(dc:description, P).
+exclude_property(P) :- rdf_equal(dc:identifier, P).
 
 
 rdf_eq(S, P, O) :-
@@ -557,18 +576,18 @@ html_facets(Facets) -->
 		 \html_facets(Facets, 0))).
 
 html_facets([], _) --> !.
+html_facets([facet(_, Vs, Selected)|Fs], N) -->
+	{ Vs = [_], Selected = [] },
+	html_facets(Fs, N).
 html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 	{ N1 is N+1,
 	  rdfs_label(P, Label),
-	  pairs_sort_by_result_count(ResultsByValue, Values),
-	  list_limit(Values, 3, TopN, Rest)
- 	},
+	  pairs_sort_by_result_count(ResultsByValue, Values)
+  	},
 	html(div(class(facet),
 		 [ div(class(header), Label),
 		   div([title(P), class(items)],
-		      [ \resource_list(TopN, Selected),
-			\resource_rest_list(Rest, facets+N, Selected)
-		      ])
+		       \resource_list(Values, Selected))
 		 ])),
 	html_facets(Fs, N1).
 
