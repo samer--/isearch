@@ -91,6 +91,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	% collect results
 	R = result(S, Lit, T, Rel, Path),
 	findall(R, search_result(Query, Class, S, Lit, T, Rel, Path), Results),
+	result_uris(Results, AllResultURIs),
 
 	% collect terms
 	results_by_term(Results, ResultsByTerm),
@@ -144,7 +145,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	list_limit(OffsetResults, Limit, LimitResults, _),
 
 	% collect facets
-	facets(ResultURIs, Facets),
+	facets(FilteredURIs, Filter, AllResultURIs, Facets),
 
 	% emit html page
 	reply_html_page([ title(['Search results for ',Query])
@@ -177,7 +178,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 			       [ div(class(toggle),
 				     \toggle_link(rtoggle, rbody, '>', '>', '<')),
 				 div([class(body), id(rbody)],
-				     \html_facets(Facets, Filter)
+				     \html_facets(Facets)
 				    )
 			      ]),
 			   script(type('text/javascript'),
@@ -309,21 +310,30 @@ related(S, O, P) :-
 %
 %	Collect faceted properties of Results.
 
-facets(Results, Facets) :-
-	bagof(P-Values,
-		bagof(V-Rs,
-		      bagof(R,
-			    ( member(R, Results),
-			      resource_property(R, P, V)
-			    ),
-			    Rs
-			   ),
-		      Values
-		     ),
-		Facets).
+facets(Results, Filter, AllResults, Facets) :-
+ 	bagof(facet(P, Values, []),
+	      (	  facet_values(P, Results, true, _, Values),
+		  \+ memberchk(prop(P,_), Filter)
+	      ),
+	      Facets0),
+	findall(facet(P, Values, Selected),
+		(   select(prop(P, Selected), Filter, FilterRest),
+		    filter_to_goal(FilterRest, R, Goal),
+		    facet_values(P, AllResults, Goal, R, Values)
+		),
+		ActiveFacets),
+ 	append(ActiveFacets, Facets0, Facets).
 
-resource_property(S, P, O) :-
-	rdf(S, P, O).
+facet_values(P, Results, Goal, R, ResultsByValue) :-
+	bagof(V-Rs,
+	      bagof(R,
+		    ( member(R, Results),
+		      rdf(R, P, V),
+		      Goal
+		    ),
+		    Rs
+		   ),
+	      ResultsByValue).
 
 
 rdf_eq(S, P, O) :-
@@ -542,20 +552,16 @@ html_related_terms([P-Terms|T], N) -->
 %
 %	Emit html with facet filters.
 
-html_facets(Facets, Filter) -->
+html_facets(Facets) -->
 	html(div(id(facets),
-		 \html_facets(Facets, 0, Filter))).
+		 \html_facets(Facets, 0))).
 
-html_facets([], _, _) --> !.
-html_facets([P-ValueResults|Fs], N, Filter) -->
+html_facets([], _) --> !.
+html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 	{ N1 is N+1,
 	  rdfs_label(P, Label),
-	  pairs_sort_by_result_count(ValueResults, Values),
-	  list_limit(Values, 3, TopN, Rest),
-	  (   memberchk(prop(P, Selected), Filter)
-	  ->  true
-	  ;   Selected = []
-	  )
+	  pairs_sort_by_result_count(ResultsByValue, Values),
+	  list_limit(Values, 3, TopN, Rest)
  	},
 	html(div(class(facet),
 		 [ div(class(header), Label),
@@ -564,7 +570,7 @@ html_facets([P-ValueResults|Fs], N, Filter) -->
 			\resource_rest_list(Rest, facets+N, Selected)
 		      ])
 		 ])),
-	html_facets(Fs, N1, Filter).
+	html_facets(Fs, N1).
 
 %%	resource_rest_list(+Pairs:count-resource, +Id, +Selected)
 %
@@ -699,14 +705,17 @@ script_data(Query, Class, Terms, Relations, Filter) -->
   a.push(e);
   return a;\n',
 '};\n',
-'var updateFilter = function(a, p, v) {\n',
-'  for(var i=0; i<a.length; i++) {
-     if(a[i].prop==p) {
-	var vs = updateArray(a[i].values, v);
-	if(vs.length==0) { a.splice(i,1) };
-	return a;
-      }
-   }\n',
+'var updateFilter = function(a, p, v, replace) {\n',
+'  for(var i=0; i<a.length; i++) {\n',
+'    if(a[i].prop==p) {\n',
+'       if(replace) { a[i].values = [v] }
+	else {
+	    var vs = updateArray(a[i].values, v);
+	    if(vs.length==0) { a.splice(i,1) }
+	}
+      return a;
+      }\n',
+'  }\n',
 ' a.push({prop:p, values:[v]});
   return a;
 };\n'
@@ -764,7 +773,8 @@ script_facet_select(Id) -->
    try { value = JSON.parse(value) }
    catch(e) {}\n',
 '  var property = $(this).parent().parent().attr("title"),
-       filter = updateFilter(data.filter, property, value),
+       replace = $(e.originalTarget).hasClass("checkbox"),
+       filter = updateFilter(data.filter, property, value, !replace),
        params = jQuery.param({q:data.q,class:data.class,term:data.terms,filter:JSON.stringify(filter)}, true);\n',
 '  window.location.href = data.url+"?"+params;\n',
 '})\n'
