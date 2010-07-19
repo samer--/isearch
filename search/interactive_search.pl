@@ -96,15 +96,27 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	results_by_term(Results, ResultsByTerm),
 	pairs_sort_by_result_count(ResultsByTerm, MatchingTerms),
 
+	% collect related terms
+	(   Terms = []
+	->  RelatedTerms = []
+	;   findall(P-RT, ( member(Term, Terms),
+	                    related_term(Term, Class, RT, P)
+			  ),
+		    RTs0),
+	    sort(RTs0, RTs),
+	    group_pairs_by_key(RTs, RelatedTerms)
+	),
+
+
 	% filter the results
 	(   Terms = []
 	->  TermResults = Results
-	;   findall(RT,
+	;   findall(TR,
 		    (	member(Term, Terms),
-			memberchk(Term-RT, ResultsByTerm)
+			memberchk(Term-TR, ResultsByTerm)
 		    ),
-		    RTs),
-	    flatten(RTs, TermResults)
+		    TRs),
+	    flatten(TRs, TermResults)
 	),
        	filter_results(TermResults, Filter, FilteredResults),
 	result_uris(FilteredResults, FilteredURIs),
@@ -132,7 +144,8 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	list_limit(OffsetResults, Limit, LimitResults, _),
 
 	% collect facets
-	facets(ResultURIs, Facets),
+	%facets(ResultURIs, Facets),
+	Facets = [],
 
 	% emit html page
 	reply_html_page([ title(['Search results for ',Query])
@@ -146,12 +159,10 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 			      ),
 			   div([id(left), class(column)],
 			       [ div(class(toggle),
-				     a([id(ltoggle),href('javascript:void()'),
-					onClick('javascript:bodyToggle(\'ltoggle\',\'lbody\', [\'<\',\'>\']);')
-				 ], '<')),
+				     \toggle_link('#'+ltoggle, '#'+lbody, '<', '>')),
 				 div([class(body), id(lbody)],
-				     [ \html_term_list(MatchingTerms, Terms)
-				       %\html_related_term_list(RelatedTerms, Class)
+				     [ \html_term_list(MatchingTerms, Terms),
+				       \html_related_term_list(RelatedTerms)
 				     ])
 			       ]),
 			   div(id(results),
@@ -164,9 +175,8 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 				   )
 			      ]),
 			   div([id(right), class(column)],
-			       [ div(class(toggle), a([id(rtoggle),href('javascript:void'),
-					onClick('javascript:bodyToggle(\'rtoggle\',\'rbody\', [\'>\',\'<\']);')
-				 ], '>')),
+			       [ div(class(toggle),
+				     \toggle_link('#'+rtoggle, '#'+rbody, '>', '<')),
 				 div([class(body), id(rbody)],
 				     \html_facets(Facets, Filter)
 				    )
@@ -176,7 +186,8 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
  				    \script_data(Query, Class, Terms, Relations, Filter),
 				    \script_term_select(terms),
 				    \script_relation_select(relations),
-				    \script_facet_select(facets)
+				    \script_facet_select(facets),
+				    \script_suggestion_select(suggestions)
  				  ])
 			]).
 
@@ -263,7 +274,7 @@ pred_filter([Value|Vs], P, R, Goal) :-
 	Goal =  (rdf(R, P, Value); Rest),
 	pred_filter(Vs, P, R, Rest).
 
-%%	related_term(+Resource, +Class, -Term)
+%%	related_term(+Resource, +Class, -Term, -P)
 %
 %	Term is related to Resource.
 
@@ -468,7 +479,7 @@ html_pages(N, Pages, Limit, URL, ActivePage) -->
 	html(span(class(Class), a(href(URL+'&offset='+Offset), N1))),
 	html_pages(N1, Pages, Limit, URL, ActivePage).
 
-%%	html_term_list(+Terms, +Query, +Class, +Selected)
+%%	html_term_list(+Terms, +Selected)
 %
 %	Emit a list of terms matching the query.
 
@@ -505,7 +516,30 @@ html_relation_list(Relations, Selected, NumberOfResults) -->
 		       ])
 		 ])).
 
-%%	html_facets(+Facets, +Query, +Class, +Term, +Filter)
+%%	html_related_term_list(+Pairs)
+%
+%	Emit html with facet filters.
+
+html_related_term_list(Pairs) -->
+	html(div(id('suggestions'),
+		 \html_related_terms(Pairs, 0))).
+
+html_related_terms([], _) --> !.
+html_related_terms([P-Terms|T], N) -->
+	{ N1 is N+1,
+	  rdfs_label(P, Label),
+ 	  list_limit(Terms, 3, TopN, Rest)
+ 	},
+	html(div(class(facet),
+		 [ div(class(header), Label),
+		   div([title(P), class(items)],
+		      [ \resource_list(TopN, []),
+			\resource_rest_list(Rest, P+N, [])
+		      ])
+		 ])),
+	html_related_terms(T, N1).
+
+%%	html_facets(+Facets, +Filter)
 %
 %	Emit html with facet filters.
 
@@ -541,23 +575,20 @@ resource_rest_list([], _, _) --> !.
 resource_rest_list(Rest, Id, Selected) -->
 	{ (   member(S, Selected),
 	      memberchk(_-S, Rest)
-	  ->  Display = 'display:block',
-	      Label = 'less'
-	  ;   Display = 'display:none',
-	      Label = 'more'
+	  ->  Display = block,
+	      L1 = less, L2 = more
+	  ;   Display = none,
+	      L1 = more, L2 = less
 	  )
 	},
 	html([ul([id(Id+body),
 		  class('resource-list toggle-body'),
-		  style(Display)
+		  style('display:'+Display)
 		 ],
 		 \resource_items(Rest, Selected)
 		),
 	      div(class('toggle-button'),
-		  a([id(Id+toggle), href('javascript:void()'),
-		     onClick('javascript:bodyToggle(\''+Id+'toggle\',\''+Id+'body\',
-						    [\'less\',\'more\']);')
-		    ], Label))
+		  \toggle_link('#'+Id+toggle, '#'+Id+body, L1, L2))
 	     ]).
 
 %%	resource_list(+Pairs:count-resource, +Selected)
@@ -570,14 +601,18 @@ resource_list(Rs, Selected) -->
 		\resource_items(Rs, Selected))).
 
 resource_items([], _) --> !.
-resource_items([Count-R|T], Selected) -->
-	{ (   R = literal(_)
+resource_items([V|T], Selected) -->
+	{ resource_term_count(V, R, Count),
+	  (   R = literal(_)
 	  ->  literal_text(R, Label)
 	  ;   rdfs_label(R, Label)
 	  )
 	},
 	resource_item(R, Label, Count, Selected),
  	resource_items(T, Selected).
+
+resource_term_count(Count-R, R, Count) :- !.
+resource_term_count(R, R, '') :- atom(R).
 
 resource_item(R, Label, Count, Selected) -->
 	{ Selected = [],
@@ -627,6 +662,16 @@ resource_label(FullLabel) -->
 	{ truncate_atom(FullLabel, 75, Label) },
 	html(span([title(FullLabel), class(label)], Label)).
 
+%%	toggle_link(+ToggleId, +BodyId, +ActiveLabel, +ToggleLabel)
+%
+%	Emit an hyperlink that toggles the display of BodyId.
+
+toggle_link(ToggleId, BodyId, Label1, Label2) -->
+	html(a([id(ToggleId), href('javascript:void(0)'),
+		onClick('javascript:bodyToggle(\''+ToggleId+'\',\''+BodyId+'\',
+					       [\''+Label1+'\',\''+Label2+'\']);')
+		    ], Label1)).
+
 		 /*******************************
 		 *	    javascript      	*
 		 *******************************/
@@ -670,16 +715,14 @@ script_data(Query, Class, Terms, Relations, Filter) -->
 
 script_body_toggle -->
 	html(\[
-'function bodyToggle(toggleId, containerId, labels) {\n',
-'    var elContainer = document.getElementById(containerId),
-	 elToggle = document.getElementById(toggleId);\n',
-'    if(elContainer.style.display === "none") {
-         elContainer.style.display = "block";
-	 elToggle.innerHTML = labels[0];
+'function bodyToggle(toggle, container, labels) {\n',
+' if($(container).css("display") === "none") {
+         $(container).css("display", "block");
+	 $(toggle).html(labels[0]);
      }\n',
 '    else {
-	  elContainer.style.display = "none";
-	   elToggle.innerHTML = labels[1];
+	  $(container).css("display", "none");
+	  $(toggle).html(labels[1]);
      }',
 '}\n'
 	      ]).
@@ -689,6 +732,15 @@ script_term_select(Id) -->
 '$("#',Id,'").delegate("li", "click", function(e) {\n',
 '   var terms = updateArray(data.terms, $(this).attr("title")),
         params = jQuery.param({q:data.q,class:data.class,term:terms}, true);
+    window.location.href = data.url+"?"+params;\n',
+'})\n'
+	      ]).
+
+script_suggestion_select(Id) -->
+	html(\[
+'$("#',Id,'").delegate("li", "click", function(e) {\n',
+'   var query = $(this).find(".label").attr("title"),
+        params = jQuery.param({q:query,class:data.class}, true);
     window.location.href = data.url+"?"+params;\n',
 '})\n'
 	      ]).
