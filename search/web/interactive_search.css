@@ -98,6 +98,8 @@ ul.resource-list li {
 	float: right;
 }
 
+.filter .property,
+.filter .value,
 .relations-header,
 #relations .toggle-button,
 #relations .resource-list li {
@@ -106,7 +108,7 @@ ul.resource-list li {
 }
 
 .facet,
-.related {
+.suggestion {
 	margin-top:10px;
 	padding-top:5px;
 }
@@ -119,6 +121,24 @@ ul.resource-list li {
 .column .header {
 	border-bottom:1px solid #CCC;
 	padding-bottom: 3px;
+}
+
+#relations {
+	overflow: auto;
+	clear: both;
+}
+#filters {
+	clear: both;
+	overflow: auto;
+	margin: 5px 0;
+}
+.filter {
+	background-color: #EEEEEE;
+	border: 1px solid #CCCCCC;
+	float: left;
+	margin-right: 5px;
+	overflow: auto;
+	padding: 2px;
 }
 
 #results .header {

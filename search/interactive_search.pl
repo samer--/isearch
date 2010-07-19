@@ -91,7 +91,6 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	% collect results
 	R = result(S, Lit, T, Rel, Path),
 	findall(R, search_result(Query, Class, S, Lit, T, Rel, Path), Results),
-	result_uris(Results, AllResultURIs),
 
 	% collect terms
 	results_by_term(Results, ResultsByTerm),
@@ -119,6 +118,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 		    TRs),
 	    flatten(TRs, TermResults)
 	),
+	result_uris(TermResults, TermResultURIs),
        	filter_results(TermResults, Filter, FilteredResults),
 	result_uris(FilteredResults, FilteredURIs),
 	length(FilteredURIs, FilteredNumberOfResults),
@@ -145,7 +145,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	list_limit(OffsetResults, Limit, LimitResults, _),
 
 	% collect facets
-	facets(FilteredURIs, Filter, AllResultURIs, Facets),
+	facets(FilteredURIs, Filter, TermResultURIs, Facets),
 
 	% emit html page
 	reply_html_page([ title(['Search results for ',Query])
@@ -167,8 +167,11 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 			       ]),
 			   div(id(results),
 			      [ div(class(header),
-				    \html_relation_list(MatchingRelations, Relations,
-							FilteredNumberOfResults)),
+				    [ \html_relation_list(MatchingRelations, Relations,
+							FilteredNumberOfResults),
+				      \html_filter_list(Filter)
+				    ]),
+
 				\html_result_list(LimitResults),
 				div(class(paginator),
 				    \html_paginator(NumberOfResults, Offset, Limit)
@@ -326,7 +329,7 @@ facets(Results, Filter, AllResults, Facets) :-
  	append(ActiveFacets, Facets0, Facets).
 facet_values(P, Results, ResultsByValue) :-
 	bagof(V-Rs,
-	      bagof(R,
+	      setof(R,
 		    ( member(R, Results),
 		      facet_property(R, P, V)
   		    ),
@@ -335,10 +338,10 @@ facet_values(P, Results, ResultsByValue) :-
 	      ResultsByValue).
 facet_values(P, Results, Goal, R, ResultsByValue) :-
 	bagof(V-Rs,
-	      bagof(R,
+	      setof(R,
 		    ( member(R, Results),
-		      rdf_has(R, P, V),
-		      Goal
+		      once(Goal),
+		      rdf_has(R, P, V)
 		    ),
 		    Rs
 		   ),
@@ -346,8 +349,14 @@ facet_values(P, Results, Goal, R, ResultsByValue) :-
 
 facet_property(S, P, V) :-
 	rdf(S, P0, V),
-	once((rdf_reachable(P0, rdfs:subPropertyOf, P),
-	      \+ rdf(P, rdfs:subPropertyOf, _))).
+	super_property(P0, P).
+
+super_property(P0, Super) :-
+	findall(P, ( rdf_reachable(P0, rdfs:subPropertyOf, P),
+		      \+ rdf(P, rdfs:subPropertyOf, _)
+		    ),Ps0),
+	sort(Ps0, Ps),
+	member(Super, Ps).
 
 exclude_property(P) :- rdf_equal(rdf:type, P).
 exclude_property(P) :- rdf_equal(dc:title, P).
@@ -558,7 +567,7 @@ html_related_terms([P-Terms|T], N) -->
 	  rdfs_label(P, Label),
  	  list_limit(Terms, 3, TopN, Rest)
  	},
-	html(div(class(facet),
+	html(div(class(suggestion),
 		 [ div(class(header), Label),
 		   div([title(P), class(items)],
 		      [ \resource_list(TopN, []),
@@ -590,6 +599,31 @@ html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 		       \resource_list(Values, Selected))
 		 ])),
 	html_facets(Fs, N1).
+
+html_filter_list([]) --> !.
+html_filter_list(Filter) -->
+	html(div(id(filters),
+		 \html_filter(Filter))).
+
+html_filter([]) --> !.
+html_filter([prop(P, Vs)|Ps]) -->
+	{ rdfs_label(P, Label) },
+	html(div(class(filter),
+		 [ div([title(P), class(property)], [Label, ': ']),
+		   div(class(value), \property_values(Vs))
+		 ])),
+	html_filter(Ps).
+
+property_values([]) --> !.
+property_values([V|Vs]) -->
+	{ (   V = literal(_)
+	  ->  literal_text(V, Label)
+	  ;   rdfs_label(V, Label)
+	  ),
+	  resource_attr(V, Attr)
+	},
+	html(div(title(Attr), Label)),
+	property_values(Vs).
 
 %%	resource_rest_list(+Pairs:count-resource, +Id, +Selected)
 %
@@ -640,7 +674,7 @@ resource_term_count(R, R, '') :- atom(R).
 
 resource_item(R, Label, Count, Selected) -->
 	{ Selected = [],
-	  resource_value(R, A)
+	  resource_attr(R, A)
 	},
 	!,
 	html(li(title(A),
@@ -648,7 +682,7 @@ resource_item(R, Label, Count, Selected) -->
 	       )).
 resource_item(R, Label, Count, Selected) -->
  	 { memberchk(R, Selected),
-	   resource_value(R, A),
+	   resource_attr(R, A),
 	   !,
  	   http_absolute_location(css('checkbox_selected.png'), Img, [])
 	},
@@ -657,14 +691,14 @@ resource_item(R, Label, Count, Selected) -->
 	       )).
 resource_item(R, Label, Count, _Selected) -->
 	{ http_absolute_location(css('checkbox_unselected.png'), Img, []),
-	  resource_value(R, A)
+	  resource_attr(R, A)
 	},
 	html(li(title(A),
 		  \resource_item_content(Label, Count, Img)
 	       )).
 
-resource_value(R, R) :- atom(R), !.
-resource_value(Lit, S) :-
+resource_attr(R, R) :- atom(R), !.
+resource_attr(Lit, S) :-
 	prolog_to_json(Lit, JSON),
 	with_output_to(string(S),
 		       json_write(current_output, JSON, [])).
