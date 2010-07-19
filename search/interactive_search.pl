@@ -48,10 +48,10 @@ interactive_search_page(Request) :-
 			  class(Class,
 				[default(TargetClass), description('Target Class')]),
 			  term(Terms,
-			       [default([]), json,
+			       [zero_or_more,
 				description('Disambiguation term')]),
 			  relation(Relations,
-				   [default([]), json,
+				   [zero_or_more,
 				    description('Limit results by specific relation')]),
  			  filter(Filter,
 				 [default([]), json,
@@ -136,14 +136,15 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	reply_html_page([ title(['Search results for ',Query])
  			],
 			[  \html_requires(css('interactive_search.css')),
-			   \html_requires('http://yui.yahooapis.com/3.1.1/build/yui/yui-min.js'),
-			   div(id(logo), \logo),
+			   \html_requires(js('jquery-1.4.2.min.js')),
+			   \html_requires(js('json2.js')),
+ 			   div(id(logo), \logo),
 			   div(id(search),
 			       \search_field(Query, Class)
 			      ),
 			   div([id(left), class(column)],
 			       [ div(class(toggle),
-				     a([id(ltoggle),href('#'),
+				     a([id(ltoggle),href('javascript:void()'),
 					onClick('javascript:bodyToggle(\'ltoggle\',\'lbody\', [\'<\',\'>\']);')
 				 ], '<')),
 				 div([class(body), id(lbody)],
@@ -161,7 +162,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 				   )
 			      ]),
 			   div([id(right), class(column)],
-			       [ div(class(toggle), a([id(rtoggle),href('#'),
+			       [ div(class(toggle), a([id(rtoggle),href('javascript:void'),
 					onClick('javascript:bodyToggle(\'rtoggle\',\'rbody\', [\'>\',\'<\']);')
 				 ], '>')),
 				 div([class(body), id(rbody)],
@@ -170,13 +171,11 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 			      ]),
 			   script(type('text/javascript'),
 				  [ \script_body_toggle,
-				    'YUI().use("event", "json-stringify", "json-parse", function(Y) {\n',
-				    \script_data(Query, Class, Terms, Relations, Filter),
+ 				    \script_data(Query, Class, Terms, Relations, Filter),
 				    \script_term_select(terms),
 				    \script_relation_select(relations),
-				    \script_facet_select(facets),
-				    '});\n'
-				  ])
+				    \script_facet_select(facets)
+ 				  ])
 			]).
 
 result_uris(Results, URIs) :-
@@ -550,7 +549,7 @@ resource_rest_list(Rest, Id, Selected) -->
 		 ],
 		 \resource_list(Rest, Selected)
 		),
-	      div(a([id(Id+toggle),href('#'),
+	      div(a([id(Id+toggle),href('javascript:void()'),
 		     onClick('javascript:bodyToggle(\''+Id+'toggle\',\''+Id+'body\',
 						    [\'less\',\'more\']);')
 		    ], Label))
@@ -642,36 +641,25 @@ script_data(Query, Class, Terms, Relations, Filter) -->
 	},
  	html(\[
 'var data = ',Data,';\n',
-'var update = function(a, e) {
-  for(var i=0; i<a.length; i++) {
-     if(a[i]==e||(a[i].literal&&a[i].literal==e.literal)) { a.splice(i,1); return a; }
+'var updateArray = function(a, e) {\n',
+'  for(var i=0; i<a.length; i++) {
+     if(a[i]==e||(a[i].literal&&a[i].literal==e.literal)) {
+       a.splice(i,1); return a;
+     }
   }
   a.push(e);
-  return a;
-};\n',
+  return a;\n',
+'};\n',
 'var updateFilter = function(a, p, v) {\n',
 '  for(var i=0; i<a.length; i++) {
      if(a[i].prop==p) {
-	var vs = update(a[i].values, v);
+	var vs = updateArray(a[i].values, v);
 	if(vs.length==0) { a.splice(i,1) };
 	return a;
       }
    }\n',
 ' a.push({prop:p, values:[v]});
   return a;
-};\n',
-'var makeParameters = function(o) {
-  var s = "";\n',
-' for(var key in o) {
-    var v = o[key];\n',
-'    if(v&&(v.constructor==Object||v.constructor==Array)) {
-	s += key+"="+encodeURIComponent(Y.JSON.stringify(v))+"&";
-     }\n',
-'    else if(v) {
-      s += key+"="+encodeURIComponent(v)+"&";
-    }
-  }\n',
-'  return s;
 };\n'
 	      ]).
 
@@ -693,36 +681,33 @@ script_body_toggle -->
 
 script_term_select(Id) -->
 	html(\[
-'Y.delegate("click", function(e) {\n',
-'  var value = e.currentTarget.get("title"),
-       terms = update(data.terms, value),
-       params = makeParameters({q:data.q,class:data.class,term:terms});\n',
-'  window.location.href = data.url+"?"+params;\n',
-'}, Y.one("#',Id,'"), "li");\n'
+'$("#',Id,'").delegate("li", "click", function(e) {\n',
+'   var terms = updateArray(data.terms, $(this).attr("title")),
+        params = jQuery.param({q:data.q,class:data.class,term:terms}, true);
+    window.location.href = data.url+"?"+params;\n',
+'})\n'
 	      ]).
 
 script_relation_select(Id) -->
 	html(\[
-'Y.delegate("click", function(e) {\n',
-'  var value = e.currentTarget.get("title"),
-       relations = update(data.relations, value),
-       params = makeParameters({q:data.q,class:data.class,term:data.terms,relation:relations});\n',
-' window.location.href = data.url+"?"+params;\n',
-'}, Y.one("#',Id,'"), "li");\n'
+'$("#',Id,'").delegate("li", "click", function(e) {\n',
+'   var relations = updateArray(data.relations,	$(this).attr("title")),
+	params = jQuery.param({q:data.q,class:data.class,term:data.terms,relation:relations}, true);\n',
+'   window.location.href = data.url+"?"+params;\n',
+'})\n'
 	      ]).
 
 script_facet_select(Id) -->
 	html(\[
-'Y.delegate("click", function(e) {\n',
-'  var value = e.currentTarget.get("title");
-   if(value.substr(0,1)=="{") {
-      value = Y.JSON.parse(value);
-   }\n',
-'  var property = e.currentTarget.get("parentNode").get("parentNode").get("title"),
+'$("#',Id,'").delegate("li", "click", function(e) {\n',
+'  var value = $(this).attr("title");
+   try { value = JSON.parse(value) }
+   catch(e) {}\n',
+'  var property = $(this).parent().parent().attr("title"),
        filter = updateFilter(data.filter, property, value),
-       params = makeParameters({q:data.q,class:data.class,term:data.terms,filter:filter});\n',
-' window.location.href = data.url+"?"+params;\n',
-'}, Y.one("#',Id,'"), "li");\n'
+       params = jQuery.param({q:data.q,class:data.class,term:data.terms,filter:JSON.stringify(filter)}, true);\n',
+'  window.location.href = data.url+"?"+params;\n',
+'})\n'
 	      ]).
 
 		 /*******************************

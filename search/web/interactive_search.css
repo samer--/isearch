@@ -64,6 +64,7 @@ a img {
 	border-style: solid;
 	border-color: #CCC;
 	padding: 0 10px;
+	width: 600px;
 }
 
 ul.resource-list {
@@ -100,7 +101,7 @@ ul.resource-list li {
 #relations {
 	overflow: auto;
 }
-#relation .header,
+#relations .header,
 #relations .resource-list li {
 	padding: 2px 2px 0;
 	float: left;
