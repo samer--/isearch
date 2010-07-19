@@ -158,7 +158,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 			      ),
 			   div([id(left), class(column)],
 			       [ div(class(toggle),
-				     \toggle_link('#'+ltoggle, '#'+lbody, '<', '>')),
+				     \toggle_link(ltoggle, lbody, '<', '<', '>')),
 				 div([class(body), id(lbody)],
 				     [ \html_term_list(MatchingTerms, Terms),
 				       \html_related_term_list(RelatedTerms)
@@ -175,7 +175,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 			      ]),
 			   div([id(right), class(column)],
 			       [ div(class(toggle),
-				     \toggle_link('#'+rtoggle, '#'+rbody, '>', '<')),
+				     \toggle_link(rtoggle, rbody, '>', '>', '<')),
 				 div([class(body), id(rbody)],
 				     \html_facets(Facets, Filter)
 				    )
@@ -533,7 +533,7 @@ html_related_terms([P-Terms|T], N) -->
 		 [ div(class(header), Label),
 		   div([title(P), class(items)],
 		      [ \resource_list(TopN, []),
-			\resource_rest_list(Rest, P+N, [])
+			\resource_rest_list(Rest, suggestions+N, [])
 		      ])
 		 ])),
 	html_related_terms(T, N1).
@@ -561,7 +561,7 @@ html_facets([P-ValueResults|Fs], N, Filter) -->
 		 [ div(class(header), Label),
 		   div([title(P), class(items)],
 		      [ \resource_list(TopN, Selected),
-			\resource_rest_list(Rest, P+N, Selected)
+			\resource_rest_list(Rest, facets+N, Selected)
 		      ])
 		 ])),
 	html_facets(Fs, N1, Filter).
@@ -587,7 +587,7 @@ resource_rest_list(Rest, Id, Selected) -->
 		 \resource_items(Rest, Selected)
 		),
 	      div(class('toggle-button'),
-		  \toggle_link('#'+Id+toggle, '#'+Id+body, L1, L2))
+		  \toggle_link(Id+toggle, Id+body, L1, L2, L1))
 	     ]).
 
 %%	resource_list(+Pairs:count-resource, +Selected)
@@ -665,11 +665,11 @@ resource_label(FullLabel) -->
 %
 %	Emit an hyperlink that toggles the display of BodyId.
 
-toggle_link(ToggleId, BodyId, Label1, Label2) -->
+toggle_link(ToggleId, BodyId, Label, Shown, Hidden) -->
 	html(a([id(ToggleId), href('javascript:void(0)'),
-		onClick('javascript:bodyToggle(\''+ToggleId+'\',\''+BodyId+'\',
-					       [\''+Label1+'\',\''+Label2+'\']);')
-		    ], Label1)).
+		onClick('javascript:bodyToggle(\'#'+ToggleId+'\',\'#'+BodyId+'\',
+					       [\''+Shown+'\',\''+Hidden+'\']);')
+		    ], Label)).
 
 		 /*******************************
 		 *	    javascript      	*
