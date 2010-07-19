@@ -652,7 +652,7 @@ resource_item_content(Label, Count) -->
 resource_item_content(Label, Count, Img) -->
 	html([ div(class(count), Count),
 	       div(class('value-inner'),
-		   [ div(class(checkbox), img(src(Img), [])),
+		   [ img([class(checkbox), src(Img)], []),
 		     \resource_label(Label)
  		   ])
 	     ]).
@@ -729,7 +729,9 @@ script_body_toggle -->
 script_term_select(Id) -->
 	html(\[
 '$("#',Id,'").delegate("li", "click", function(e) {\n',
-'   var terms = updateArray(data.terms, $(this).attr("title")),
+'   var terms = $(e.originalTarget).hasClass("checkbox") ?
+		  updateArray(data.terms, $(this).attr("title")) :
+		  $(this).attr("title"),
         params = jQuery.param({q:data.q,class:data.class,term:terms}, true);
     window.location.href = data.url+"?"+params;\n',
 '})\n'
@@ -747,7 +749,9 @@ script_suggestion_select(Id) -->
 script_relation_select(Id) -->
 	html(\[
 '$("#',Id,'").delegate("li", "click", function(e) {\n',
-'   var relations = updateArray(data.relations,	$(this).attr("title")),
+'   var relations = $(e.originalTarget).hasClass("checkbox") ?
+		      updateArray(data.relations, $(this).attr("title")) :
+		      $(this).attr("title"),
 	params = jQuery.param({q:data.q,class:data.class,term:data.terms,relation:relations}, true);\n',
 '   window.location.href = data.url+"?"+params;\n',
 '})\n'
