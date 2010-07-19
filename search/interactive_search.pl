@@ -144,8 +144,7 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 	list_limit(OffsetResults, Limit, LimitResults, _),
 
 	% collect facets
-	%facets(ResultURIs, Facets),
-	Facets = [],
+	facets(ResultURIs, Facets),
 
 	% emit html page
 	reply_html_page([ title(['Search results for ',Query])
