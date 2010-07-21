@@ -98,13 +98,18 @@ ul.resource-list li {
 	float: right;
 }
 
-.filter .property,
-.filter .value,
 .relations-header,
 #relations .toggle-button,
 #relations .resource-list li {
 	padding: 2px 2px 0;
 	float: left;
+}
+
+.filter .property {
+	font-size: 95%;
+}
+.filter .resource-list .value-inner {
+	padding-left: 1em;
 }
 
 .facet,

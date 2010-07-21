@@ -190,7 +190,8 @@ result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
 				    \script_term_select(terms),
 				    \script_relation_select(relations),
 				    \script_facet_select(facets),
-				    \script_suggestion_select(suggestions)
+				    \script_suggestion_select(suggestions),
+				    \script_filter_select(filters)
  				  ])
 			]).
 
@@ -213,17 +214,6 @@ results_by_relation(Results, ResultsByRelation) :-
 	keysort(RelationResults0, RelationResults),
 	group_pairs_by_key(RelationResults, ResultsByRelation).
 
-
-% collect related terms
-	/*
-	(   nonvar(Term)
-	->  findall(P-T, related_term(Term, Class, T, P), PathTerms0),
-	    sort(PathTerms0, PathTerms),
-	    group_pairs_by_key(PathTerms, RelatedTerms)
-	;   RelatedTerms = []
-	),*/
-
-	% coll
 
 		 /*******************************
 	         *	 collect results        *
@@ -317,7 +307,7 @@ facets(Results, Filter, AllResults, Facets) :-
  	bagof(facet(P, Values, []),
 	      (	  facet_values(P, Results, Values),
  		  \+ memberchk(prop(P,_), Filter),
-		  \+ exclude_property(P)
+		  \+ facet_exclude_property(P)
 	      ),
 	      Facets0),
 	findall(facet(P, Values, Selected),
@@ -358,10 +348,16 @@ super_property(P0, Super) :-
 	sort(Ps0, Ps),
 	member(Super, Ps).
 
-exclude_property(P) :- rdf_equal(rdf:type, P).
-exclude_property(P) :- rdf_equal(dc:title, P).
-exclude_property(P) :- rdf_equal(dc:description, P).
-exclude_property(P) :- rdf_equal(dc:identifier, P).
+:- multifile
+	facet_exclude_property/1.		% ?Resource
+
+:- rdf_meta
+	facet_exclude_property(r).
+
+facet_exclude_property(rdf:type).
+facet_exclude_property(dc:title).
+facet_exclude_property(dc:description).
+facet_exclude_property(dc:identifier).
 
 
 rdf_eq(S, P, O) :-
@@ -448,7 +444,6 @@ result_description(R) -->
 	!,
 	html(Desc).
 result_description(_R) --> !.
-
 
 result_image(R) -->
 	{ rdf(Image, 'http://www.vraweb.org/vracore/vracore3#relation.depicts', R)
@@ -608,9 +603,10 @@ html_filter_list(Filter) -->
 html_filter([]) --> !.
 html_filter([prop(P, Vs)|Ps]) -->
 	{ rdfs_label(P, Label) },
-	html(div(class(filter),
-		 [ div([title(P), class(property)], [Label, ': ']),
-		   div(class(value), \property_values(Vs))
+	html(div([title(P), class(filter)],
+		 [ div(class(property), [Label, ': ']),
+		   ul(class('resource-list'),
+		      \property_values(Vs))
 		 ])),
 	html_filter(Ps).
 
@@ -620,10 +616,15 @@ property_values([V|Vs]) -->
 	  ->  literal_text(V, Label)
 	  ;   rdfs_label(V, Label)
 	  ),
-	  resource_attr(V, Attr)
+	  resource_attr(V, Attr),
+	  http_absolute_location(css('checkbox_selected.png'), Img, [])
 	},
-	html(div(title(Attr), Label)),
-	property_values(Vs).
+	html(li([title(Attr)],
+		div(class('value-inner'),
+		   [ img([class(checkbox), src(Img)], []),
+		     \resource_label(Label)
+ 		   ]))),
+ 	property_values(Vs).
 
 %%	resource_rest_list(+Pairs:count-resource, +Id, +Selected)
 %
@@ -814,7 +815,7 @@ script_relation_select(Id) -->
 '   var relations = $(e.originalTarget).hasClass("checkbox") ?
 		      updateArray(data.relations, $(this).attr("title")) :
 		      $(this).attr("title"),
-	params = jQuery.param({q:data.q,class:data.class,term:data.terms,relation:relations}, true);\n',
+	params = jQuery.param({q:data.q,class:data.class,term:data.terms,filter:JSON.stringify(data.filter),relation:relations}, true);\n',
 '   window.location.href = data.url+"?"+params;\n',
 '})\n'
 	      ]).
@@ -828,11 +829,23 @@ script_facet_select(Id) -->
 '  var property = $(this).parent().parent().attr("title"),
        replace = $(e.originalTarget).hasClass("checkbox"),
        filter = updateFilter(data.filter, property, value, !replace),
-       params = jQuery.param({q:data.q,class:data.class,term:data.terms,filter:JSON.stringify(filter)}, true);\n',
+       params = jQuery.param({q:data.q,class:data.class,term:data.terms,relation:data.relations,filter:JSON.stringify(filter)}, true);\n',
 '  window.location.href = data.url+"?"+params;\n',
 '})\n'
 	      ]).
 
+script_filter_select(Id) -->
+	html(\[
+'$("#',Id,'").delegate("li", "click", function(e) {\n',
+'  var value = $(this).attr("title");
+   try { value = JSON.parse(value) }
+   catch(e) {}\n',
+'  var property = $(this).parent().parent().attr("title"),
+       filter = updateFilter(data.filter, property, value),
+       params = jQuery.param({q:data.q,class:data.class,term:data.terms,relation:data.relations,filter:JSON.stringify(filter)}, true);\n',
+'  window.location.href = data.url+"?"+params;\n',
+'})\n'
+	      ]).
 		 /*******************************
 		 *	    utilities		*
 		 *******************************/
