@@ -12,6 +12,12 @@
 :- use_module(library(semweb/rdf_label)).
 :- use_module(library(semweb/rdf_litindex)).
 
+% add local web directories from which static files are served.
+:- prolog_load_context(directory, Dir),
+   asserta(user:file_search_path(search, Dir)).
+:- asserta(user:file_search_path(css, search(web))).
+:- asserta(user:file_search_path(js, search(web))).
+
 :- http_handler(root(search), basic_search_page, []).
 
 basic_search_page(Request) :-

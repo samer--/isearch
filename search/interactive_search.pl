@@ -16,7 +16,11 @@
 :- use_module(library(semweb/rdf_label)).
 :- use_module(library(settings)).
 
-:- http_handler(root(isearch), interactive_search_page, []).
+% add local web directories from which static files are served.
+:- prolog_load_context(directory, Dir),
+   asserta(user:file_search_path(search, Dir)).
+:- asserta(user:file_search_path(css, search(web))).
+:- asserta(user:file_search_path(js, search(web))).
 
 :- setting(search:target_class, uri,
 	   'http://purl.org/vocabularies/rma/Work',
@@ -39,6 +43,8 @@
 http:convert_parameter(json, Atom, Term) :-
 	atom_json_term(Atom, JSON, []),
 	json_to_prolog(JSON, Term).
+
+:- http_handler(root(isearch), interactive_search_page, []).
 
 interactive_search_page(Request) :-
 	setting(search:target_class, TargetClass),
@@ -303,6 +309,7 @@ related(S, O, P) :-
 %
 %	Collect faceted properties of Results.
 
+facets([], _, _, []) :- !.
 facets(Results, Filter, AllResults, Facets) :-
  	bagof(facet(P, Values, []),
 	      (	  facet_values(P, Results, Values),
