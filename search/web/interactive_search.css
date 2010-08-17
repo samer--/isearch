@@ -163,9 +163,17 @@ ul.resource-list li {
 	border-color: #CCC;
 }
 
+#results ol {
+	margin:0;
+	padding:0;
+}
+#results li.r {
+	list-style: none;
+	padding: 0;
+	margin-bottom: 14px;
+}
 .result-item {
 	clear: both;
-	margin-bottom: 20px;
 	overflow: auto;
 }
 .result-item .title {
