@@ -36,7 +36,7 @@
 % interactive search components
 :- setting(search:show_disambiguations, boolean, true,
 	   'Show terms matching the query as disambiguation suggestions').
-:- setting(search:show_suggestions, boolean, true,
+:- setting(search:show_suggestions, boolean, false,
 	   'Show terms as suggestions for further queries').
 :- setting(search:show_relations, boolean, true,
 	   'Show relations by which search results are found').
@@ -148,23 +148,21 @@ search_result(Query, Class, S, _Lit, Query, P, [P,Query]) :-
 search_result(Query, Class, S, Lit, Term, Rel, Path) :-
 	rdf_find_literals(case(Query), Literals),
 	member(Lit, Literals),
-	search_pattern(Lit, Class, S, Rel, Term, Path, Pattern0),
-	rdf_global_term(Pattern0, Pattern),
-	call(Pattern).
+	search_pattern(Lit, Class, S, Rel, Term, Path).
 
-search_pattern(Lit, Class, S, P, _Term, Path, Pattern) :-
+search_pattern(Lit, Class, S, P, _Term, Path) :-
 	Path = [P, literal(Lit)],
-	Pattern = ( rdf(S, P, literal(Lit)),
-		    instance_of_class(Class, S)).
-search_pattern(Lit, Class, S, Rel, Term, Path, Pattern) :-
+        rdf(S, P, literal(Lit)),
+	instance_of_class(Class, S).
+search_pattern(Lit, Class, S, Rel, Term, Path) :-
 	rdf_equal(LabelP, rdfs:label),
 	Path = [Rel, Term, P, literal(Lit)],
-	Pattern = ( rdf_has(Term, LabelP, literal(Lit), P),
- 		    rdf(S, Rel, Term),
-		    instance_of_class(Class, S)).
+	rdf_has(Term, LabelP, literal(Lit), P),
+	rdf(S, Rel, Term),
+	instance_of_class(Class, S).
 
-search_pattern(Lit, Class, S, P, Term, Path, Pattern) :-
-	catch(cliopatria:search_pattern(Lit, Class, S, P, Term, Path, Pattern),
+search_pattern(Lit, Class, S, P, Term, Path) :-
+	catch(cliopatria:search_pattern(Lit, Class, S, P, Term, Path),
 	      _, fail).
 
 
