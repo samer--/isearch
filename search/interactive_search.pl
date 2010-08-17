@@ -31,7 +31,7 @@
 	  'Maximum number of relations initially shown').
 :- setting(search:logo, atom,
 	   'http://www.rijksmuseum.nl/images/logos/rijksmuseum-logo?medium',
-	   'Src for an img shown as the on the page').
+	   'Src for an img shown as the logo on the page').
 
 :- json_object
      prop(prop:atom, values:_),
@@ -44,12 +44,16 @@ http:convert_parameter(json, Atom, Term) :-
 	atom_json_term(Atom, JSON, []),
 	json_to_prolog(JSON, Term).
 
-:- http_handler(root(isearch), interactive_search_page, []).
+:- http_handler(root(isearch), http_interactive_search, []).
 
-interactive_search_page(Request) :-
+%%	http_interactive_search(+Request)
+%
+%	HTTP handler for search requests.
+
+http_interactive_search(Request) :-
 	setting(search:target_class, TargetClass),
 	http_parameters(Request,
-			[ q(Query,
+			[ q(Keyword,
 				[optional(true), description('Search query')]),
 			  class(Class,
 				[default(TargetClass), description('Target Class')]),
@@ -67,167 +71,40 @@ interactive_search_page(Request) :-
 			  limit(Limit,
 				[default(20), integer, description('Limit on the number of results')])
 			]),
-	(   var(Query)
-	->  start_page(Class)
-	;   result_page(Query, Terms, Class, Relations, Filter, Offset, Limit)
-	).
+	(   var(Keyword)
+	->  html_start_page(Class)
+	;   keyword_search_results(Keyword, Class, Results),
+	    result_terms(Results, MatchingTerms, ResultsByTerm),
+	    related_terms(Terms, Class, RelatedTerms),
+	    select_results_by_key(Terms, ResultsByTerm, Results, TermResults),
+	    filter_results_by_facet(TermResults, Filter, FilteredResults),
+	    result_relations(FilteredResults, MatchingRelations, ResultsByRelation),
+	    select_results_by_key(Relations, ResultsByRelation, FilteredResults, RelationResults),
 
-%%	start_page(+Class)
+	    result_uris(TermResults, TermResultURIs),
+	    result_uris(FilteredResults, FilteredURIs),
+	    result_uris(RelationResults, ResultURIs),
+	    facets(FilteredURIs, Filter, TermResultURIs, Facets),
+
+	    length(FilteredURIs, NumberOfRelationResults),
+	    length(ResultURIs, NumberOfResults),
+	    list_offset(ResultURIs, Offset, OffsetResults),
+	    list_limit(OffsetResults, Limit, LimitedResults, _),
+ 	    html_result_page(query(Keyword, Class, Terms, Relations, Filter, Offset, Limit),
+			     result(LimitedResults, NumberOfResults, NumberOfRelationResults),
+			     MatchingTerms, RelatedTerms,
+			     MatchingRelations, Facets)
+  	).
+
+
+%%	keyword_search_results(+Keyword, +Class, -Results)
 %
-%	Emit an html page with a search field
+%	Results are resources related to Keyword and of type Class.
 
-start_page(Class) :-
-	reply_html_page(title('Search'),
-			[  \html_requires(css('interactive_search.css')),
-			   div([style('margin-top:10em')],
-				[ div([style('text-align:center')], \logo),
-				  div([style('text-align:center;padding:0'), id(search)],
-				      \search_field('', Class))])
-			]).
-
-%%	result_page(+Query, +Terms, +Class, +Relations, +Filter,
-%%	+Offset, +Limit)
-%
-%	Emit an html page with a search field,
-%	a left column with query suggestions, a body with the search
-%	results and a right column with faceted filters.
-
-result_page(Query, Terms, Class, Relations, Filter, Offset, Limit) :-
-
-	% collect results
+keyword_search_results('', _, []) :- !.
+keyword_search_results(Query, Class, Results) :-
 	R = result(S, Lit, T, Rel, Path),
-	findall(R, search_result(Query, Class, S, Lit, T, Rel, Path), Results),
-
-	% collect terms
-	results_by_term(Results, ResultsByTerm),
-	pairs_sort_by_result_count(ResultsByTerm, MatchingTerms),
-
-	% collect related terms
-	(   Terms = []
-	->  RelatedTerms = []
-	;   findall(P-RT, ( member(Term, Terms),
-	                    related_term(Term, Class, RT, P)
-			  ),
-		    RTs0),
-	    sort(RTs0, RTs),
-	    group_pairs_by_key(RTs, RelatedTerms)
-	),
-
-
-	% filter the results
-	(   Terms = []
-	->  TermResults = Results
-	;   findall(TR,
-		    (	member(Term, Terms),
-			memberchk(Term-TR, ResultsByTerm)
-		    ),
-		    TRs),
-	    flatten(TRs, TermResults)
-	),
-	result_uris(TermResults, TermResultURIs),
-       	filter_results(TermResults, Filter, FilteredResults),
-	result_uris(FilteredResults, FilteredURIs),
-	length(FilteredURIs, FilteredNumberOfResults),
-
-	% collect relations
-	results_by_relation(FilteredResults, ResultsByRelation),
-	pairs_sort_by_result_count(ResultsByRelation, MatchingRelations),
-
-	% filter by relation
-	(   Relations = []
-	->  RelationResults = FilteredResults
-	;   findall(RR,
-		    (	member(Relation, Relations),
-			memberchk(Relation-RR, ResultsByRelation)
-		    ),
-		    RRs),
-	    flatten(RRs, RelationResults)
-	),
-
-	% take limit and offset of results
-	result_uris(RelationResults, ResultURIs),
-	length(ResultURIs, NumberOfResults),
-	list_offset(ResultURIs, Offset, OffsetResults),
-	list_limit(OffsetResults, Limit, LimitResults, _),
-
-	% collect facets
-	facets(FilteredURIs, Filter, TermResultURIs, Facets),
-
-	% emit html page
-	reply_html_page([ title(['Search results for ',Query])
- 			],
-			[  \html_requires(css('interactive_search.css')),
-			   \html_requires(js('jquery-1.4.2.min.js')),
-			   \html_requires(js('json2.js')),
- 			   div(id(logo), \logo),
-			   div(id(search),
-			       \search_field(Query, Class)
-			      ),
-			   div([id(left), class(column)],
-			       [ div(class(toggle),
-				     \toggle_link(ltoggle, lbody, '<', '<', '>')),
-				 div([class(body), id(lbody)],
-				     [ \html_term_list(MatchingTerms, Terms),
-				       \html_related_term_list(RelatedTerms)
-				     ])
-			       ]),
-			   div(id(results),
-			      [ div(class(header),
-				    [ \html_relation_list(MatchingRelations, Relations,
-							FilteredNumberOfResults),
-				      \html_filter_list(Filter)
-				    ]),
-
-				\html_result_list(LimitResults),
-				div(class(paginator),
-				    \html_paginator(NumberOfResults, Offset, Limit)
-				   )
-			      ]),
-			   div([id(right), class(column)],
-			       [ div(class(toggle),
-				     \toggle_link(rtoggle, rbody, '>', '>', '<')),
-				 div([class(body), id(rbody)],
-				     \html_facets(Facets)
-				    )
-			      ]),
-			   script(type('text/javascript'),
-				  [ \script_body_toggle,
- 				    \script_data(Query, Class, Terms, Relations, Filter),
-				    \script_term_select(terms),
-				    \script_relation_select(relations),
-				    \script_facet_select(facets),
-				    \script_suggestion_select(suggestions),
-				    \script_filter_select(filters)
- 				  ])
-			]).
-
-result_uris(Results, URIs) :-
-	findall(S, member(result(S, _,_,_,_), Results), URIs0),
-	sort(URIs0, URIs).
-
-results_by_term(Results, ResultsByTerm) :-
-	Result = result(_, _, T, _, _),
-	findall(T-Result, (member(Result, Results),
-		      nonvar(T)
-		     ),
-		TermResults0),
-	keysort(TermResults0, TermResults),
-	group_pairs_by_key(TermResults, ResultsByTerm).
-
-results_by_relation(Results, ResultsByRelation) :-
-	Result = result(_, _, _, R, _),
-	findall(R-Result, member(Result, Results), RelationResults0),
-	keysort(RelationResults0, RelationResults),
-	group_pairs_by_key(RelationResults, ResultsByRelation).
-
-
-		 /*******************************
-	         *	 collect results        *
-		 *******************************/
-
-%%	search_result(+Query, +Class, -S, -Lit, -Term, -Rel, -Path)
-%
-%	True if R is related to Query and of type Class.
+	findall(R, search_result(Query, Class, S, Lit, T, Rel, Path), Results).
 
 search_result(Query, Class, S, _Lit, Query, P, [P,Query]) :-
 	once(rdf(_,_,Query)),
@@ -249,33 +126,40 @@ search_path(Term, P, Class, S, Term, Rel, Path, [Rel,Term|Path]) :-
 	instance_of_class(Class, S).
 
 
-%%	filter_results(+Rs, +Filter, -Filtered)
+%%	result_terms(+SearchResults, -Terms, -ResultsByTerms)
 %
-%	Filtered contains the resources from Rs that pass Filter.
+%	Terms are all resources in the search paths directly related to
+%	the results. ResultsByTerms groups the results by these
+%	terms.
 
-filter_results(Rs, [], Rs) :- !.
-filter_results(Rs, Filter, FilteredResults) :-
-	filter_to_goal(Filter, R, Goal),
-	Result = result(R,_,_,_,_),
-	findall(Result, (member(Result, Rs),
-			 call(Goal)
-			),
-		FilteredResults).
+result_terms([], [], []) :- !.
+result_terms(Results, Terms, ResultsByTerm) :-
+	results_by_term(Results, ResultsByTerm),
+	pairs_sort_by_result_count(ResultsByTerm, Terms).
 
-filter_to_goal([], _, true).
-filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
-	pred_filter(Values, P, R, Goal),
-	filter_to_goal(T, R, Rest).
+results_by_term(Results, ResultsByTerm) :-
+	Result = result(_, _, T, _, _),
+	findall(T-Result, (member(Result, Results),
+		      nonvar(T)
+		     ),
+		TermResults0),
+	keysort(TermResults0, TermResults),
+	group_pairs_by_key(TermResults, ResultsByTerm).
 
-pred_filter([Value], P, R, Goal) :- !,
-	Goal = rdf_has(R, P, Value).
-pred_filter([Value|Vs], P, R, Goal) :-
-	Goal =  (rdf_has(R, P, Value); Rest),
-	pred_filter(Vs, P, R, Rest).
 
-%%	related_term(+Resource, +Class, -Term, -P)
+%%	related_terms(+ResultTerms, +Class, -RelatedTerms)
 %
-%	Term is related to Resource.
+%	RelatedTerms are all resources related to ResultTerms and
+%	used as metadata for resources of type Class.
+
+related_terms([], _, []) :- !.
+related_terms(Terms, Class, RelatedTerms) :-
+	findall(P-RT, ( member(Term, Terms),
+			related_term(Term, Class, RT, P)
+		      ),
+		RTs0),
+	sort(RTs0, RTs),
+	group_pairs_by_key(RTs, RelatedTerms).
 
 related_term(R, Class, Term, P) :-
 	related(R, Term, P),
@@ -305,13 +189,80 @@ related(S, O, P) :-
 	\+ rdf_eq(S, IP, O).
 
 
+%%	result_relations(+SearchResults, -Relations, -ResultsByRelation)
+%
+%	Relations are all predicates in the search paths direclty
+%	related to the results. ResultsByRelations groups the
+%	results by these relations.
+
+result_relations([], [], []) :- !.
+result_relations(Results, Relations, ResultsByRelation) :-
+	results_by_relation(Results, ResultsByRelation),
+	pairs_sort_by_result_count(ResultsByRelation, Relations).
+
+results_by_relation(Results, ResultsByRelation) :-
+	Result = result(_, _, _, R, _),
+	findall(R-Result, member(Result, Results), RelationResults0),
+	keysort(RelationResults0, RelationResults),
+	group_pairs_by_key(RelationResults, ResultsByRelation).
+
+
+%%	filter_results_by_facet(+Rs, +Filter, -Filtered)
+%
+%	Filtered contains the resources from Rs that pass Filter.
+
+filter_results_by_facet(Rs, [], Rs) :- !.
+filter_results_by_facet(Rs, Filter, FilteredResults) :-
+	filter_to_goal(Filter, R, Goal),
+	Result = result(R,_,_,_,_),
+	findall(Result, (member(Result, Rs),
+			 call(Goal)
+			),
+		FilteredResults).
+
+filter_to_goal([], _, true).
+filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
+	pred_filter(Values, P, R, Goal),
+	filter_to_goal(T, R, Rest).
+
+pred_filter([Value], P, R, Goal) :- !,
+	Goal = rdf_has(R, P, Value).
+pred_filter([Value|Vs], P, R, Goal) :-
+	Goal =  (rdf_has(R, P, Value); Rest),
+	pred_filter(Vs, P, R, Rest).
+
+
+%%	select_results_by_key(+Keys, +SearchResultsByKey,
+%%	+SearchResults, -SelectedResults)
+%
+%	SelectedResults contains the results grouped by Keys.
+
+select_results_by_key([], _, Results, Results) :- !.
+select_results_by_key(Keys, ResultsByKey, _, SelectedResults) :-
+	findall(R,
+		(	member(Key, Keys),
+			memberchk(Key-R, ResultsByKey)
+		),
+		Rs),
+	flatten(Rs, SelectedResults).
+
+
+%%	result_uris(ResultObjects, -URIs)
+%
+%	URIs are the uris of the results in ResultObjects.
+
+result_uris(Results, URIs) :-
+	findall(S, member(result(S, _,_,_,_), Results), URIs0),
+	sort(URIs0, URIs).
+
+
 %%	facets(+Results, -Facets)
 %
 %	Collect faceted properties of Results.
 
 facets([], _, _, []) :- !.
 facets(Results, Filter, AllResults, Facets) :-
- 	bagof(facet(P, Values, []),
+ 	findall(facet(P, Values, []),
 	      (	  facet_values(P, Results, Values),
  		  \+ memberchk(prop(P,_), Filter),
 		  \+ facet_exclude_property(P)
@@ -361,8 +312,8 @@ super_property(P0, Super) :-
 :- rdf_meta
 	facet_exclude_property(r).
 
-facet_exclude_property(rdf:type).
-facet_exclude_property(dc:title).
+%facet_exclude_property(rdf:type).
+%facet_exclude_property(dc:title).
 facet_exclude_property(dc:description).
 facet_exclude_property(dc:identifier).
 
@@ -381,15 +332,99 @@ equivalent_property(P) :-
 
 
 		 /*******************************
-		 *	 HTML result page	*
+		 *	     HTML pages	        *
 		 *******************************/
+
+%%	html_start_page(+Class)
+%
+%	Emit an html page with a search field
+
+html_start_page(Class) :-
+	reply_html_page(title('Search'),
+			[  \html_requires(css('interactive_search.css')),
+			   div([style('margin-top:10em')],
+				[ div([style('text-align:center')], \logo),
+				  div([style('text-align:center;padding:0'), id(search)],
+				      \search_field('', Class))])
+			]).
+
+%%	html_result_page(+Query, +Terms, +Class, +Relations, +Filter,
+%%	+Offset, +Limit)
+%
+%	Emit an html page with a search field,
+%	a left column with query suggestions, a body with the search
+%	results and a right column with faceted filters.
+
+html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
+	QueryObj = query(Keyword, Class, SelectedTerms, SelectedRelations, Filter, Offset, Limit),
+	ResultObj = result(Results, NumberOfResults, NumberOfRelationResults),
+	reply_html_page([ title(['Search results for ', Keyword])
+ 			],
+			[  \html_requires(css('interactive_search.css')),
+			   \html_requires(js('jquery-1.4.2.min.js')),
+			   \html_requires(js('json2.js')),
+			   div(id(header),
+			       \html_header(Keyword, Class)),
+ 			   div(id(main),
+			       div(class('main-content'),
+				   [ div([id(left), class(column)],
+					 \html_term_list(Terms, RelatedTerms, SelectedTerms)),
+				     div(id(results),
+					 [ div(class(header),
+					       [ \html_filter_list(Filter),
+						 \html_relation_list(Relations, SelectedRelations,
+								     NumberOfRelationResults)
+					       ]),
+				       div(class(body),
+					   \html_result_list(Results)),
+					   div(class(footer),
+					       \html_paginator(NumberOfResults, Offset, Limit))
+					 ]),
+				     div([id(right), class(column)],
+					 \html_facet_list(Facets))
+				   ])),
+			   script(type('text/javascript'),
+				  [ \script_body_toggle,
+ 				    \script_data(Keyword, Class, SelectedTerms, SelectedRelations, Filter),
+				    \script_term_select(terms),
+				    \script_relation_select(relations),
+				    \script_facet_select(facets),
+				    \script_suggestion_select(suggestions),
+				    \script_filter_select(filters)
+ 				  ])
+			]).
+
+html_header(Keyword, Class) -->
+	html(div(class('header-content'),
+		 [ div(id(logo), \logo),
+		   div(id(search),
+		       \search_field(Keyword, Class))
+		 ])).
+
+html_term_list(Terms, RelatedTerms, SelectedTerms) -->
+	html([ div(class(toggle),
+		   \toggle_link(ltoggle, lbody, '<', '<', '>')),
+	       div([class(body), id(lbody)],
+		   [ \html_term_list(Terms, SelectedTerms),
+		     \html_related_term_list(RelatedTerms)
+		   ])
+	     ]).
+
+html_facet_list(Facets) -->
+	html([ div(class(toggle),
+		   \toggle_link(rtoggle, rbody, '>', '>', '<')),
+	       div([class(body), id(rbody)],
+		   \html_facets(Facets)
+		  )
+	     ]).
+
 %%	logo
 %
 %	Emit a logo
 
 logo -->
 	{ setting(search:logo, Src),
-	  http_location_by_id(interactive_search_page, Home)
+	  http_location_by_id(http_interactive_search, Home)
 	},
 	html(a(href(Home), img(src(Src), []))).
 
@@ -466,7 +501,6 @@ result_image(_) --> !.
 html_paginator(Total, _Offset, Limit) -->
 	{ Total < Limit },
 	!.
-
 html_paginator(Total, Offset, Limit) -->
 	{ http_current_request(Request),
 	  request_url_components(Request, URLComponents),
@@ -483,9 +517,11 @@ html_paginator(Total, Offset, Limit) -->
 	  ),
 	  parse_url(URL, [search(Search)|Cs])
 	},
- 	prev_page(ActivePage, Limit, URL),
-	html_pages(StartPage, EndPage, Limit, URL, ActivePage),
-	next_page(ActivePage, Pages, Limit, URL).
+	html(div(class(paginator),
+		 [ \prev_page(ActivePage, Limit, URL),
+		   \html_pages(StartPage, EndPage, Limit, URL, ActivePage),
+		   \next_page(ActivePage, Pages, Limit, URL)
+		 ])).
 
 prev_page(0, _, _) --> !.
 prev_page(Active, Limit, URL) -->
@@ -743,7 +779,7 @@ toggle_link(ToggleId, BodyId, Label, Shown, Hidden) -->
 		 *******************************/
 
 script_data(Query, Class, Terms, Relations, Filter) -->
-	{ http_location_by_id(interactive_search_page, URL),
+	{ http_location_by_id(http_interactive_search, URL),
 	  prolog_to_json(Filter, FilterJSON),
 	  Params = json([url(URL),
 			 q(Query),

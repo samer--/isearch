@@ -1,9 +1,7 @@
 body {
-	font-family:"Lucida Grande","Tahoma","Helvetica","Arial",sans-serif;
+	font-family: Arial,Helvetica,sans-serif;
 	font-color: #222;
-	font-size: 12px;
 }
-
 a,
 a:visited {
 	color: #0000EE;
@@ -12,42 +10,42 @@ a img {
 	border: none;
 }
 
+#header {
+	padding: 5px 0 15px;
+}
 #logo {
+	width: 200px;
 	float: left;
-	width: 14em;
+	text-align: center;
 	margin-right: 5px;
 }
 #logo img {
 	max-width: 100%;
 }
-#search {
-	padding-left: 14em;
-	margin: 10px 5px 25px 10px;
-}
 #search .btn {
-	background:none repeat scroll 0 0 transparent;
-	font-size:15px;
-	height:30px;
-	margin:0;
-	vertical-align:top;
+	font-size: 15px;
+	height: 30px;
+	margin: 0;
+	vertical-align: top;
 }
 #search .inp {
-	font-size:18px;
-	width:20em;
+	font-size: 18px;
+	width: 20em;
 }
 
 .toggle a {
 	text-decoration: none;
 }
-#left .toggle {
-	text-align: right;
-}
 #left {
 	float: left;
 	margin-right: 5px;
 }
+#left .toggle {
+	text-align: right;
+}
 #left .body {
-	width: 14em;
+	width: 200px;
+	font-size: small;
 }
 
 #right {
@@ -55,7 +53,8 @@ a img {
 	margin-left: 5px;
 }
 #right .body {
-	width: 16em;
+	width: 200px;
+	font-size: small;
 }
 
 #results {
@@ -64,13 +63,12 @@ a img {
 	border-style: solid;
 	border-color: #CCC;
 	padding: 0 10px;
-	width: 600px;
+	width: 560px;
 }
 
 ul.resource-list {
 	margin: 0;
 	padding: 0;
-	font-size: 95%;
 }
 ul.resource-list li {
 	padding: 2px 0;
@@ -98,26 +96,11 @@ ul.resource-list li {
 	float: right;
 }
 
-.relations-header,
-#relations .toggle-button,
-#relations .resource-list li {
-	padding: 2px 2px 0;
-	float: left;
-}
-
-.filter .property {
-	font-size: 95%;
-}
-.filter .resource-list .value-inner {
-	padding-left: 1em;
-}
-
 .facet,
 .suggestion {
 	margin-top:10px;
 	padding-top:5px;
 }
-
 .facet .resource-list {
 	overflow: auto;
 	max-height: 12em;
@@ -127,33 +110,46 @@ ul.resource-list li {
 	border-bottom:1px solid #CCC;
 	padding-bottom: 3px;
 }
-
 #relations {
 	overflow: auto;
 	clear: both;
+	font-size: small;
+}
+#relations .relations-header,
+#relations .toggle-button,
+#relations .resource-list li {
+	padding: 0 4px 0 0;
+	float: left;
+}
+#relations .relations-content {
+	overflow: auto;
 }
 #filters {
 	clear: both;
 	overflow: auto;
-	margin: 5px 0;
+	font-size: small;
 }
 .filter {
 	background-color: #EEEEEE;
 	border: 1px solid #CCCCCC;
 	float: left;
-	margin-right: 5px;
+	margin: 0 5px 10px 0;
 	overflow: auto;
 	padding: 2px;
+}
+.filter .resource-list .value-inner {
+	padding-left: 1em;
 }
 
 #results .header {
 	overflow: auto;
-	padding-bottom: 15px;
+	margin-bottom: 10px;
 }
 
 .paginator {
 	text-align: center;
 	margin: 10px 0 20px;
+	font-size: small;
 }
 .paginator a {
 	border:1px solid #0000EE;
@@ -169,7 +165,6 @@ ul.resource-list li {
 
 .result-item {
 	clear: both;
-	max-width: 600px;
 	margin-bottom: 20px;
 	overflow: auto;
 }
@@ -191,7 +186,7 @@ ul.resource-list li {
 
 }
 .result-item .description {
-	font-size: 90%;
+	font-size: small;
 }
 .result-item .text {
 }
