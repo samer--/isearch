@@ -17,34 +17,52 @@
 :- use_module(library(settings)).
 
 % add local web directories from which static files are served.
+
 :- prolog_load_context(directory, Dir),
    asserta(user:file_search_path(search, Dir)).
 :- asserta(user:file_search_path(css, search(web))).
 :- asserta(user:file_search_path(js, search(web))).
 
-:- setting(search:target_class, uri,
-	   'http://purl.org/vocabularies/rma/Work',
+% declare application settings
+%
+% Do not change these here. Instead use :- set_setting(type, value) in
+% your startup file.
+
+:- setting(search:path, callable, root(isearch),
+	   'URL Path to access this application').
+:- setting(search:target_class, uri, rdfs:'Resource',
 	   'Default search target').
+
+% interactive search components
+:- setting(search:show_disambiguations, boolean, true,
+	   'Show terms matching the query as disambiguation suggestions').
+:- setting(search:show_suggestions, boolean, true,
+	   'Show terms as suggestions for further queries').
+:- setting(search:show_relations, boolean, true,
+	   'Show relations by which search results are found').
+:- setting(search:show_facets, boolean, true,
+	   'Show faceted filters in the search result page').
+:- setting(search:show_single_value_facet, boolean, false,
+	   'Show facets with a single value').
+
+% limits
+:- setting(search:result_limit, integer, 10,
+	  'Maximum number of results shown').
 :- setting(search:term_limit, integer, 5,
-	  'Maximum number of items initially shown in the term disambiguation list').
+	  'Maximum number of items shown in the term disambiguation list').
 :- setting(search:relation_limit, integer, 5,
-	  'Maximum number of relations initially shown').
-:- setting(search:logo, atom,
-	   'http://www.rijksmuseum.nl/images/logos/rijksmuseum-logo?medium',
-	   'Src for an img shown as the logo on the page').
+	  'Maximum number of relations shown').
 
-:- json_object
-     prop(prop:atom, values:_),
-     literal(literal:atom),
-     literal(literal:_),
-     type(type:atom, text:atom),
-     lang(lang:atom, text:atom).
+% appearence
+:- setting(search:logo, atom, '',
+	   'Img shown as a logo on the page').
 
-http:convert_parameter(json, Atom, Term) :-
-	atom_json_term(Atom, JSON, []),
-	json_to_prolog(JSON, Term).
+% http handler.
+%
+% use :- set_setting(search:path, YOURPATH) to override.
 
-:- http_handler(root(isearch), http_interactive_search, []).
+:- setting(search:path, Path),
+   http_handler(Path, http_interactive_search, []).
 
 %%	http_interactive_search(+Request)
 %
@@ -52,6 +70,7 @@ http:convert_parameter(json, Atom, Term) :-
 
 http_interactive_search(Request) :-
 	setting(search:target_class, TargetClass),
+	setting(search:result_limit, DefaultLimit),
 	http_parameters(Request,
 			[ q(Keyword,
 				[optional(true), description('Search query')]),
@@ -69,7 +88,8 @@ http_interactive_search(Request) :-
 			  offset(Offset,
 				[default(0), integer, description('Offset of the result list')]),
 			  limit(Limit,
-				[default(20), integer, description('Limit on the number of results')])
+				[default(DefaultLimit), integer,
+				 description('Limit on the number of results')])
 			]),
 	(   var(Keyword)
 	->  html_start_page(Class)
@@ -83,19 +103,33 @@ http_interactive_search(Request) :-
 
 	    result_uris(TermResults, TermResultURIs),
 	    result_uris(FilteredResults, FilteredURIs),
-	    result_uris(RelationResults, ResultURIs),
-	    facets(FilteredURIs, Filter, TermResultURIs, Facets),
+	    facets(FilteredURIs, TermResultURIs, Filter, Facets),
 
+	    results_by_uri(RelationResults, ResultPairs),
+	    length(ResultPairs, NumberOfResults),
 	    length(FilteredURIs, NumberOfRelationResults),
-	    length(ResultURIs, NumberOfResults),
-	    list_offset(ResultURIs, Offset, OffsetResults),
+
+	    list_offset(ResultPairs, Offset, OffsetResults),
 	    list_limit(OffsetResults, Limit, LimitedResults, _),
+
  	    html_result_page(query(Keyword, Class, Terms, Relations, Filter, Offset, Limit),
 			     result(LimitedResults, NumberOfResults, NumberOfRelationResults),
 			     MatchingTerms, RelatedTerms,
 			     MatchingRelations, Facets)
   	).
 
+% conversion of json parameters.
+
+:- json_object
+     prop(prop:atom, values:_),
+     literal(literal:atom),
+     literal(literal:_),
+     type(type:atom, text:atom),
+     lang(lang:atom, text:atom).
+
+http:convert_parameter(json, Atom, Term) :-
+	atom_json_term(Atom, JSON, []),
+	json_to_prolog(JSON, Term).
 
 %%	keyword_search_results(+Keyword, +Class, -Results)
 %
@@ -114,16 +148,24 @@ search_result(Query, Class, S, _Lit, Query, P, [P,Query]) :-
 search_result(Query, Class, S, Lit, Term, Rel, Path) :-
 	rdf_find_literals(case(Query), Literals),
 	member(Lit, Literals),
-	rdf(R, P, literal(Lit)),
-	search_path(R, P, Class, S, Term, Rel, [P,literal(Lit)], Path).
+	search_pattern(Lit, Class, S, Rel, Term, Path, Pattern0),
+	rdf_global_term(Pattern0, Pattern),
+	call(Pattern).
 
-search_path(S, P, Class, S, _Term, P, Path, Path) :-
-	instance_of_class(Class, S),
-	!.
-search_path(Term, P, Class, S, Term, Rel, Path, [Rel,Term|Path]) :-
-	rdfs_subproperty_of(P, rdfs:label),
-	rdf(S, Rel, Term),
-	instance_of_class(Class, S).
+search_pattern(Lit, Class, S, P, _Term, Path, Pattern) :-
+	Path = [P, literal(Lit)],
+	Pattern = ( rdf(S, P, literal(Lit)),
+		    instance_of_class(Class, S)).
+search_pattern(Lit, Class, S, Rel, Term, Path, Pattern) :-
+	rdf_equal(LabelP, rdfs:label),
+	Path = [Rel, Term, P, literal(Lit)],
+	Pattern = ( rdf_has(Term, LabelP, literal(Lit), P),
+ 		    rdf(S, Rel, Term),
+		    instance_of_class(Class, S)).
+
+search_pattern(Lit, Class, S, P, Term, Path, Pattern) :-
+	catch(cliopatria:search_pattern(Lit, Class, S, P, Term, Path, Pattern),
+	      _, fail).
 
 
 %%	result_terms(+SearchResults, -Terms, -ResultsByTerms)
@@ -133,6 +175,9 @@ search_path(Term, P, Class, S, Term, Rel, Path, [Rel,Term|Path]) :-
 %	terms.
 
 result_terms([], [], []) :- !.
+result_terms(_, [], []) :-
+	setting(search:show_disambiguations, false),
+	!.
 result_terms(Results, Terms, ResultsByTerm) :-
 	results_by_term(Results, ResultsByTerm),
 	pairs_sort_by_result_count(ResultsByTerm, Terms).
@@ -153,6 +198,9 @@ results_by_term(Results, ResultsByTerm) :-
 %	used as metadata for resources of type Class.
 
 related_terms([], _, []) :- !.
+related_terms(_, _, []) :-
+	setting(search:show_suggestions, false),
+	!.
 related_terms(Terms, Class, RelatedTerms) :-
 	findall(P-RT, ( member(Term, Terms),
 			related_term(Term, Class, RT, P)
@@ -196,6 +244,9 @@ related(S, O, P) :-
 %	results by these relations.
 
 result_relations([], [], []) :- !.
+result_relations(_, [], []) :-
+	setting(search:show_relations, false),
+	!.
 result_relations(Results, Relations, ResultsByRelation) :-
 	results_by_relation(Results, ResultsByRelation),
 	pairs_sort_by_result_count(ResultsByRelation, Relations).
@@ -246,6 +297,15 @@ select_results_by_key(Keys, ResultsByKey, _, SelectedResults) :-
 		Rs),
 	flatten(Rs, SelectedResults).
 
+%%	results_by_uri(+Results, -ResultsGroupedByURI)
+%
+%	Group the result terms by unique URIs.
+
+results_by_uri(Results, ResultsByURI) :-
+	Result = result(S, _, _, _, _),
+	findall(S-Result, member(Result, Results), URIResults0),
+	keysort(URIResults0, URIResults),
+	group_pairs_by_key(URIResults, ResultsByURI).
 
 %%	result_uris(ResultObjects, -URIs)
 %
@@ -261,9 +321,12 @@ result_uris(Results, URIs) :-
 %	Collect faceted properties of Results.
 
 facets([], _, _, []) :- !.
-facets(Results, Filter, AllResults, Facets) :-
+facets(_, _, _, []) :-
+	setting(search:show_facets, false),
+	!.
+facets(FilteredResults, AllResults, Filter, Facets) :-
  	findall(facet(P, Values, []),
-	      (	  facet_values(P, Results, Values),
+	      (	  facet_values(P, FilteredResults, Values),
  		  \+ memberchk(prop(P,_), Filter),
 		  \+ facet_exclude_property(P)
 	      ),
@@ -275,6 +338,7 @@ facets(Results, Filter, AllResults, Facets) :-
 		),
 		ActiveFacets),
  	append(ActiveFacets, Facets0, Facets).
+
 facet_values(P, Results, ResultsByValue) :-
 	bagof(V-Rs,
 	      setof(R,
@@ -306,17 +370,6 @@ super_property(P0, Super) :-
 	sort(Ps0, Ps),
 	member(Super, Ps).
 
-:- multifile
-	facet_exclude_property/1.		% ?Resource
-
-:- rdf_meta
-	facet_exclude_property(r).
-
-%facet_exclude_property(rdf:type).
-%facet_exclude_property(dc:title).
-facet_exclude_property(dc:description).
-facet_exclude_property(dc:identifier).
-
 
 rdf_eq(S, P, O) :-
 	rdf(S, P, O).
@@ -332,7 +385,7 @@ equivalent_property(P) :-
 
 
 		 /*******************************
-		 *	     HTML pages	        *
+		 *	        HTML	        *
 		 *******************************/
 
 %%	html_start_page(+Class)
@@ -367,21 +420,19 @@ html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
 			       \html_header(Keyword, Class)),
  			   div(id(main),
 			       div(class('main-content'),
-				   [ div([id(left), class(column)],
-					 \html_term_list(Terms, RelatedTerms, SelectedTerms)),
+				   [ \html_term_list(Terms, RelatedTerms, SelectedTerms),
 				     div(id(results),
 					 [ div(class(header),
 					       [ \html_filter_list(Filter),
 						 \html_relation_list(Relations, SelectedRelations,
 								     NumberOfRelationResults)
 					       ]),
-				       div(class(body),
-					   \html_result_list(Results)),
+					   div(class(body),
+					       ol(\html_result_list(Results))),
 					   div(class(footer),
 					       \html_paginator(NumberOfResults, Offset, Limit))
 					 ]),
-				     div([id(right), class(column)],
-					 \html_facet_list(Facets))
+				     \html_facet_list(Facets)
 				   ])),
 			   script(type('text/javascript'),
 				  [ \script_body_toggle,
@@ -401,22 +452,37 @@ html_header(Keyword, Class) -->
 		       \search_field(Keyword, Class))
 		 ])).
 
+html_term_list([], [], _) --> !,
+	html(div([id(left), class(column)],
+		div(class(body), ['No suggestions']))).
 html_term_list(Terms, RelatedTerms, SelectedTerms) -->
-	html([ div(class(toggle),
-		   \toggle_link(ltoggle, lbody, '<', '<', '>')),
-	       div([class(body), id(lbody)],
-		   [ \html_term_list(Terms, SelectedTerms),
-		     \html_related_term_list(RelatedTerms)
-		   ])
-	     ]).
+	html(div([id(left), class(column)],
+		 [ div(class(toggle),
+		       \toggle_link(ltoggle, lbody, '<', '<', '>')),
+		   div([class(body), id(lbody)],
+		       [ \html_term_list(Terms, SelectedTerms),
+			 \html_related_term_list(RelatedTerms)
+		       ])
+		 ])).
 
 html_facet_list(Facets) -->
-	html([ div(class(toggle),
-		   \toggle_link(rtoggle, rbody, '>', '>', '<')),
-	       div([class(body), id(rbody)],
-		   \html_facets(Facets)
-		  )
-	     ]).
+	{ (   setting(search:show_single_value_facet, false)
+	  ->  remove_single_value_facet(Facets, Facets1)
+	  ;   Facets1 = Facets
+	  )
+	},
+	html_facet_list_(Facets1).
+
+html_facet_list_([]) --> !.
+html_facet_list_(Facets) -->
+	html(div([id(right), class(column)],
+		 [ div(class(toggle),
+		       \toggle_link(rtoggle, rbody, '>', '>', '<')),
+		   div([class(body), id(rbody)],
+		       div(id(facets),
+			   \html_facets(Facets, 0))
+		      )
+		 ])).
 
 %%	logo
 %
@@ -426,7 +492,7 @@ logo -->
 	{ setting(search:logo, Src),
 	  http_location_by_id(http_interactive_search, Home)
 	},
-	html(a(href(Home), img(src(Src), []))).
+	html(a(href(Home), img([alt('logo'), src(Src)], []))).
 
 %%	search_field(+Query, +Class)
 %
@@ -443,11 +509,14 @@ search_field(Query, Class) -->
 %	Emit HTML list with resources.
 
 html_result_list([]) --> !.
-html_result_list([R|Rs]) -->
-	format_result(R),
+html_result_list([R-SearchInfo|Rs]) -->
+	html(li(class(r), \format_result(R, SearchInfo))),
 	html_result_list(Rs).
 
-format_result(R) -->
+format_result(R, SearchInfo, In, Out) :-
+	catch(cliopatria:format_search_result(R, SearchInfo, In, Out), _, fail),
+	!.
+format_result(R, _SearchInfo) -->
 	html(div(class('result-item'),
 		 [ div(class(thumbnail),
 		       \result_image(R)),
@@ -460,7 +529,8 @@ format_result(R) -->
 		 ])).
 
 result_title(R) -->
-	{ (   rdf_label(R, Lit)
+	{ (   title_property(P),
+	      rdf_has(R, P, Lit)
 	  ->  literal_text(Lit, Label)
 	  ;   rdfs_label(R, Label)
 	  )
@@ -468,18 +538,19 @@ result_title(R) -->
 	html(Label).
 result_subtitle(R) -->
 	{ (   rdf_has(R, dc:creator, C)
-	  ->  rdf_label(C, Lit),
-	      literal_text(Lit, Creator)
+	  ->  display_label(C, Creator)
 	  ;   Creator = ''
 	  ),
 	  (   rdf_has(R, dc:date, D)
-	  ->  literal_text(D, Date)
-	  ;   Date = ''
+	  ->  literal_text(D, DateTxt),
+	      Date = [' (', DateTxt, ')']
+	  ;   Date = []
 	  )
 	},
-	html([Creator, ' (', Date, ')']).
+	html([Creator|Date]).
 result_description(R) -->
-	{ rdf_has(R, dc:description, LitDesc),
+	{ description_property(P),
+	  rdf_has(R, P, LitDesc),
 	  literal_text(LitDesc, DescTxt),
 	  truncate_atom(DescTxt, 200, Desc)
 	},
@@ -488,10 +559,15 @@ result_description(R) -->
 result_description(_R) --> !.
 
 result_image(R) -->
-	{ rdf(Image, 'http://www.vraweb.org/vracore/vracore3#relation.depicts', R)
+	{ image_property(P),
+	  rdf_has(Image, P, R),
+	  (   image_suffix(Suffix)
+	  ->  true
+	  ;   Suffix = ''
+	  )
 	},
 	!,
-	html(img(src(Image+'&resize100square'), [])).
+	html(img(src(Image+Suffix), [])).
 result_image(_) --> !.
 
 %%	html_paginator(+NumberOfResults, +Offset, +Limit)
@@ -614,18 +690,11 @@ html_related_terms([P-Terms|T], N) -->
 		 ])),
 	html_related_terms(T, N1).
 
-%%	html_facets(+Facets, +Filter)
+%%	html_facets(+Facets, +N)
 %
 %	Emit html with facet filters.
 
-html_facets(Facets) -->
-	html(div(id(facets),
-		 \html_facets(Facets, 0))).
-
 html_facets([], _) --> !.
-html_facets([facet(_, Vs, Selected)|Fs], N) -->
-	{ Vs = [_], Selected = [] },
-	html_facets(Fs, N).
 html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 	{ N1 is N+1,
 	  rdfs_label(P, Label),
@@ -669,9 +738,16 @@ property_values([V|Vs]) -->
  		   ]))),
  	property_values(Vs).
 
+remove_single_value_facet([], []) :- !.
+remove_single_value_facet([facet(_, [_], [])|Fs], Rest) :- !,
+	remove_single_value_facet(Fs, Rest).
+remove_single_value_facet([F|Fs], [F|Rest]) :-
+	remove_single_value_facet(Fs, Rest).
+
 %%	resource_rest_list(+Pairs:count-resource, +Id, +Selected)
 %
-%	Emit HTML ul with javascript control to toggle display of body
+%	Emit HTML ul with javascript control to toggle display of
+%	body
 
 resource_rest_list([], _, _) --> !.
 resource_rest_list(Rest, Id, Selected) -->
@@ -707,8 +783,8 @@ resource_items([V|T], Selected) -->
 	{ resource_term_count(V, R, Count),
 	  (   R = literal(_)
 	  ->  literal_text(R, Label)
-	  ;   rdfs_label(R, Label)
-	  )
+	  ;   display_label(R, Label)
+ 	  )
 	},
 	resource_item(R, Label, Count, Selected),
  	resource_items(T, Selected).
@@ -977,8 +1053,84 @@ instance_of_class(Class, S) :-
 	rdf_subject(S).
 instance_of_class(Class, S) :-
 	rdf_equal(Class, rdfs:'Resource'), !,
-	(   rdf(S, rdf:type, Class)
-	;    \+ rdf(S, rdf:type, _)
-	).
+	rdf_subject(S).
 instance_of_class(Class, S) :-
-	rdf(S, rdf:type, Class).
+	rdfs_individual_of(S, Class),
+	!.
+
+		 /*******************************
+		 *    PRESENTATION PROPERTIES   *
+		 *******************************/
+
+:- multifile
+     title_property/1,
+     description_property/1,
+     image_property/1,
+     image_suffix/1.
+
+:- rdf_meta
+     title_property(r),
+     description_property(r),
+     image_property(r).
+
+title_property(dc:title).
+title_property(skos:prefLabel).
+title_property(skos:altLabel).
+title_property(rdfs:label).
+
+description_property(dc:description).
+description_property(skos:scopeNote).
+
+image_property('http://www.vraweb.org/vracore/vracore3#relation.depicts').
+image_suffix('&resize100square').
+
+:- multifile
+	label_property/1.		% ?Resource
+
+:- rdf_meta
+	display_label(r, -),
+ 	label_property(r).
+
+display_label(R, Label) :-
+	label_property(P),
+	rdf_has(R, P, Lit),
+	!,
+	literal_text(Lit, Label).
+display_label(R, Label) :-
+	rdfs_label(R, Label).
+
+label_property(skos:prefLabel).
+label_property(dc:title).
+label_property(skos:altLabel).
+label_property(rdfs:label).
+label_property(P) :-
+	catch(cliopatria:label_property(P), _, fail).
+
+		 /*******************************
+		 *	      FACETS		*
+		 *******************************/
+
+:- multifile
+	facet_exclude_property/1.		% ?Resource
+
+:- rdf_meta
+	facet_exclude_property(r).
+
+%facet_exclude_property(rdf:type).
+%facet_exclude_property(dc:title).
+facet_exclude_property(dc:description).
+facet_exclude_property(dc:identifier).
+facet_exclude_property(P) :-
+	catch(cliopatria:facet_exclude_property(P), _, fail).
+
+		 /*******************************
+		 *	      HOOKS		*
+		 *******************************/
+
+%%	cliopatria:format_search_result(+Resource, +SearchInfo, +In,
+%%	-Out)
+%
+%	Emit HTML for the presentation of Resource as a search
+%	result.
+%
+%       @see This hook is used by format_result//2.
