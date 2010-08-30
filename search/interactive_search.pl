@@ -16,6 +16,13 @@
 :- use_module(library(semweb/rdf_label)).
 :- use_module(library(settings)).
 
+:- multifile
+	facet_exclude_property/1.		% ?Resource
+
+:- rdf_meta
+	facet_exclude_property(r),
+       	cliopatria:facet_exclude_property(r).
+
 % add local web directories from which static files are served.
 
 :- prolog_load_context(directory, Dir),
@@ -867,9 +874,22 @@ script_data(Query, Class, Terms, Relations, Filter) -->
 	},
  	html(\[
 'var data = ',Data,';\n',
+
+'var isEqualLiteral = function(o1,o2) {\n',
+'    var l1 = o1.literal,
+	 l2 = o2.literal;
+   if(l1&&l2) {\n',
+'      if(l1===l2) { return true; }
+       else if(l1.text===l2.text) {
+	 if(l1.lang===l2.lang) { return true;}
+	 else if(l1.type===l2.type) { return true; }
+       }
+    }
+}\n;',
+
 'var updateArray = function(a, e) {\n',
 '  for(var i=0; i<a.length; i++) {
-     if(a[i]==e||(a[i].literal&&a[i].literal==e.literal)) {
+     if(a[i]==e||isEqualLiteral(e, a[i])) {
        a.splice(i,1); return a;
      }
   }
@@ -1108,14 +1128,8 @@ label_property(P) :-
 		 *	      FACETS		*
 		 *******************************/
 
-:- multifile
-	facet_exclude_property/1.		% ?Resource
-
-:- rdf_meta
-	facet_exclude_property(r).
-
 %facet_exclude_property(rdf:type).
-%facet_exclude_property(dc:title).
+facet_exclude_property(dc:title).
 facet_exclude_property(dc:description).
 facet_exclude_property(dc:identifier).
 facet_exclude_property(P) :-
