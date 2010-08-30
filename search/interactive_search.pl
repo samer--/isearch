@@ -463,7 +463,7 @@ html_term_list([], [], _) --> !,
 html_term_list(Terms, RelatedTerms, SelectedTerms) -->
 	html(div([id(left), class(column)],
 		 [ div(class(toggle),
-		       \toggle_link(ltoggle, lbody, '<', '<', '>')),
+		       \toggle_link(ltoggle, lbody, '>', '>', '<')),
 		   div([class(body), id(lbody)],
 		       [ \html_term_list(Terms, SelectedTerms),
 			 \html_related_term_list(RelatedTerms)
@@ -482,7 +482,7 @@ html_facet_list_([]) --> !.
 html_facet_list_(Facets) -->
 	html(div([id(right), class(column)],
 		 [ div(class(toggle),
-		       \toggle_link(rtoggle, rbody, '>', '>', '<')),
+		       \toggle_link(rtoggle, rbody, '<', '<', '>')),
 		   div([class(body), id(rbody)],
 		       div(id(facets),
 			   \html_facets(Facets, 0))
