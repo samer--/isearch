@@ -459,7 +459,7 @@ html_header(Keyword, Class) -->
 
 html_term_list([], [], _) --> !,
 	html(div([id(left), class(column)],
-		div(class(body), ['No suggestions']))).
+		div(class(body), ['']))).
 html_term_list(Terms, RelatedTerms, SelectedTerms) -->
 	html(div([id(left), class(column)],
 		 [ div(class(toggle),

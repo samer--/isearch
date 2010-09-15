@@ -39,6 +39,8 @@ a img {
 #left {
 	float: left;
 	margin-right: 5px;
+	min-height:1px;
+	width:200px;
 }
 #left .toggle {
 	text-align: right;
