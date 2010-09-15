@@ -1102,12 +1102,12 @@ description_property(skos:scopeNote).
 image_property('http://www.vraweb.org/vracore/vracore3#relation.depicts').
 image_suffix('&resize100square').
 
-:- multifile
-	label_property/1.		% ?Resource
+%:- multifile
+%	label_property/1.		% ?Resource
 
 :- rdf_meta
-	display_label(r, -),
- 	label_property(r).
+	display_label(r, -).
+ 	%label_property(r).
 
 display_label(R, Label) :-
 	label_property(P),
@@ -1116,13 +1116,14 @@ display_label(R, Label) :-
 	literal_text(Lit, Label).
 display_label(R, Label) :-
 	rdfs_label(R, Label).
-
+/*
 label_property(skos:prefLabel).
 label_property(dc:title).
 label_property(skos:altLabel).
 label_property(rdfs:label).
 label_property(P) :-
 	catch(cliopatria:label_property(P), _, fail).
+*/
 
 		 /*******************************
 		 *	      FACETS		*
