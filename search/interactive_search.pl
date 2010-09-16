@@ -398,7 +398,8 @@ equivalent_property(P) :-
 %	Emit an html page with a search field
 
 html_start_page(Class) :-
-	reply_html_page(title('Search'),
+	reply_html_page(search,
+			title('Search'),
 			[  \html_requires(css('interactive_search.css')),
 			   div([style('margin-top:10em')],
 				[ div([style('text-align:center')], \logo),
@@ -416,7 +417,8 @@ html_start_page(Class) :-
 html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
 	QueryObj = query(Keyword, Class, SelectedTerms, SelectedRelations, Filter, Offset, Limit),
 	ResultObj = result(Results, NumberOfResults, NumberOfRelationResults),
-	reply_html_page([ title(['Search results for ', Keyword])
+	reply_html_page(search,
+			[ title(['Search results for ', Keyword])
  			],
 			[  \html_requires(css('interactive_search.css')),
 			   \html_requires(js('jquery-1.4.2.min.js')),
