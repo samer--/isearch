@@ -23,20 +23,11 @@
 	facet_exclude_property(r),
        	cliopatria:facet_exclude_property(r).
 
-% add local web directories from which static files are served.
-
-:- prolog_load_context(directory, Dir),
-   asserta(user:file_search_path(search, Dir)).
-:- asserta(user:file_search_path(css, search(web))).
-:- asserta(user:file_search_path(js, search(web))).
-
 % declare application settings
 %
 % Do not change these here. Instead use :- set_setting(type, value) in
 % your startup file.
 
-:- setting(search:path, callable, root(isearch),
-	   'URL Path to access this application').
 :- setting(search:target_class, uri, rdfs:'Resource',
 	   'Default search target').
 
@@ -64,12 +55,7 @@
 :- setting(search:logo, atom, '',
 	   'Img shown as a logo on the page').
 
-% http handler.
-%
-% use :- set_setting(search:path, YOURPATH) to override.
-
-:- setting(search:path, Path),
-   http_handler(Path, http_interactive_search, []).
+:- http_handler(root(isearch), http_interactive_search, []).
 
 %%	http_interactive_search(+Request)
 %
@@ -417,7 +403,7 @@ html_start_page(Class) :-
 html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
 	QueryObj = query(Keyword, Class, SelectedTerms, SelectedRelations, Filter, Offset, Limit),
 	ResultObj = result(Results, NumberOfResults, NumberOfRelationResults),
-	reply_html_page(search,
+	reply_html_page(user(isearch),
 			[ title(['Search results for ', Keyword])
  			],
 			[  \html_requires(css('interactive_search.css')),
