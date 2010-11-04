@@ -1,4 +1,4 @@
-:- module(interactive_search, []).
+:- module(app_isearch, []).
 
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/http_parameters)).
