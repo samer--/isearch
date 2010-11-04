@@ -1,0 +1,59 @@
+.search {
+	margin: 10px 5px;
+}
+.search .btn {
+	background:none repeat scroll 0 0 transparent;
+	font-size:15px;
+	height:30px;
+	margin:0;
+	vertical-align:top;
+}
+.search .inp {
+	font-size:18px;
+	width:20em;
+}
+
+.header {
+	font-size: 90%;
+	padding-bottom: 5px;
+}
+
+.paginator {
+	text-align: center;
+	margin-top: 10px
+}
+.paginator a {
+	border:1px solid #0000EE;
+	margin: 0 2px;
+	padding: 3px;
+	color: #0000EE;
+	text-decoration: none;
+}
+.paginator .active a {
+	color: #BBB;
+	border-color: #BBB;
+}
+
+.results {
+	border-left: 1px solid #CCC;
+	padding: 0 5px;
+	overflow: auto;
+}
+
+.result-item {
+	margin-bottom: 10px;
+	overflow: auto;
+}
+.result-item .thumbnail {
+	width: 150px;
+	height: 150px;
+	overflow: hidden;
+	float: left;
+	margin-right: 10px;
+}
+.result-item .thumbnail img {
+	width: 100%;
+}
+.result-item .text {
+	max-width: 600px;
+}
