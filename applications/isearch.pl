@@ -55,7 +55,7 @@
 :- setting(search:logo, atom, '',
 	   'Img shown as a logo on the page').
 
-:- http_handler(root(isearch), http_interactive_search, []).
+:- http_handler(root(isearch), http_interactive_search, [id(isearch)]).
 
 %%	http_interactive_search(+Request)
 %

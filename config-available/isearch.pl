@@ -10,7 +10,7 @@ browsing.
 @author Michiel Hildebrand
 */
 
-cliopatria:menu_item(250=query/search,  'Search').
+cliopatria:menu_item(250=query/isearch,  'Search').
 
 
 
