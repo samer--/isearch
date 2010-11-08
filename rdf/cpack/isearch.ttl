@@ -9,7 +9,7 @@
 	cpack:author <http://homepages.cwi.nl/~hildebra/foaf.rdf#node12m2kdnsux1> ;
 	cpack:primaryRepository
 	    [ a cpack:GitRepository ;
-	      cpack:repoURL <git://eculture.cs.vu.nl/home/janw/git/ClioPatria/isearch.git>
+	      cpack:gitURL <git://eculture.cs.vu.nl/home/janw/git/ClioPatria/isearch.git>
 	    ] .
 
 
