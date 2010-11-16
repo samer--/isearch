@@ -18,7 +18,8 @@
 
 :- multifile
 	cliopatria:facet_exclude_property/1,		% ?Resource
-	cliopatria:format_search_result/4.
+	cliopatria:format_search_result/4,
+	cliopatria:search_pattern/6.
 
 :- rdf_meta
 	facet_exclude_property(r),
