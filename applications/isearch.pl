@@ -17,7 +17,8 @@
 :- use_module(library(settings)).
 
 :- multifile
-	facet_exclude_property/1.		% ?Resource
+	cliopatria:facet_exclude_property/1,		% ?Resource
+	cliopatria:format_search_result/4.
 
 :- rdf_meta
 	facet_exclude_property(r),
@@ -120,6 +121,10 @@ http_interactive_search(Request) :-
      type(type:atom, text:atom),
      lang(lang:atom, text:atom).
 
+%%	http:convert_parameter(+Type, +Text, -Value) is semidet.
+%
+%	Convert for Type = =json= using json_to_prolog/2.
+
 http:convert_parameter(json, Atom, Term) :-
 	atom_json_term(Atom, JSON, []),
 	json_to_prolog(JSON, Term).
@@ -153,10 +158,8 @@ search_pattern(Lit, Class, S, Rel, Term, Path) :-
 	rdf_has(Term, LabelP, literal(Lit), P),
 	rdf(S, Rel, Term),
 	instance_of_class(Class, S).
-
 search_pattern(Lit, Class, S, P, Term, Path) :-
-	catch(cliopatria:search_pattern(Lit, Class, S, P, Term, Path),
-	      _, fail).
+	cliopatria:search_pattern(Lit, Class, S, P, Term, Path).
 
 
 %%	result_terms(+SearchResults, -Terms, -ResultsByTerms)
@@ -507,8 +510,7 @@ html_result_list([R-SearchInfo|Rs]) -->
 	html_result_list(Rs).
 
 format_result(R, SearchInfo, In, Out) :-
-	catch(cliopatria:format_search_result(R, SearchInfo, In, Out), _, fail),
-	!.
+	cliopatria:format_search_result(R, SearchInfo, In, Out), !.
 format_result(R, _SearchInfo) -->
 	html(div(class('result-item'),
 		 [ div(class(thumbnail),
@@ -1122,16 +1124,24 @@ facet_exclude_property(dc:title).
 facet_exclude_property(dc:description).
 facet_exclude_property(dc:identifier).
 facet_exclude_property(P) :-
-	catch(cliopatria:facet_exclude_property(P), _, fail).
+	cliopatria:facet_exclude_property(P).
+
 
 		 /*******************************
 		 *	      HOOKS		*
 		 *******************************/
 
-%%	cliopatria:format_search_result(+Resource, +SearchInfo, +In,
-%%	-Out)
+%%	cliopatria:format_search_result(+Resource, +SearchInfo, +In, -Out)
 %
 %	Emit HTML for the presentation of Resource as a search
 %	result.
 %
 %       @see This hook is used by format_result//2.
+
+%%	cliopatria:facet_exclude_property(+Property) is semidet.
+%
+%	True if Property must be excluded from creating a facet.
+
+%%	cliopatria:search_pattern(+Literal, Class, S, P, Term, Path)
+%
+%	@tbd	Document
