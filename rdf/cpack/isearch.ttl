@@ -6,13 +6,16 @@
 <> a cpack:Application ;
 	cpack:packageName "isearch" ;
 	dcterms:title "Interactive search" ;
-	cpack:description """The isearch package provides an interactive
-			     search application, including facetted search""" ;
-	cpack:author <http://homepages.cwi.nl/~hildebra/foaf.rdf#node12m2kdnsux1> ;
+	cpack:author <http://www.few.vu.nl/~michielh/me> ;
 	cpack:primaryRepository
 	    [ a cpack:GitRepository ;
 	      cpack:gitURL <git://eculture.cs.vu.nl/home/janw/git/ClioPatria/isearch.git>
-	    ] .
+	    ] ;
+	cpack:description
+
+"""The isearch package provides an interactive search application,
+   including facetted search.
+""" .
 
 
 
