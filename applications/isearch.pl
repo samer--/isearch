@@ -725,7 +725,7 @@ property_values([V|Vs]) -->
 	  ;   rdfs_label(V, Label)
 	  ),
 	  resource_attr(V, Attr),
-	  http_absolute_location(css('checkbox_selected.png'), Img, [])
+	  http_absolute_location(icons('checkbox_selected.png'), Img, [])
 	},
 	html(li([title(Attr)],
 		div(class('value-inner'),
@@ -800,13 +800,13 @@ resource_item(R, Label, Count, Selected) -->
  	 { memberchk(R, Selected),
 	   resource_attr(R, A),
 	   !,
- 	   http_absolute_location(css('checkbox_selected.png'), Img, [])
+ 	   http_absolute_location(icons('checkbox_selected.png'), Img, [])
 	},
 	html(li([title(A), class(selected)],
 		\resource_item_content(Label, Count, Img)
 	       )).
 resource_item(R, Label, Count, _Selected) -->
-	{ http_absolute_location(css('checkbox_unselected.png'), Img, []),
+	{ http_absolute_location(icons('checkbox_unselected.png'), Img, []),
 	  resource_attr(R, A)
 	},
 	html(li(title(A),
