@@ -140,8 +140,7 @@ keyword_search_results(Query, Class, Results) :-
 	findall(R, search_result(Query, Class, S, Lit, T, Rel, Path), Results).
 
 search_result(Query, Class, S, _Lit, Query, P, [P,Query]) :-
-	once(rdf(_,_,Query)),
-	!,
+	rdf(_,_,Query), !,
 	rdf(S, P, Query),
 	instance_of_class(Class, S).
 search_result(Query, Class, S, Lit, Term, Rel, Path) :-
@@ -1050,37 +1049,32 @@ list_limit_([H|T], N, [H|T1], Rest) :-
 	N1 is N-1,
 	list_limit_(T, N1, T1, Rest).
 
-:- rdf_meta
-    instance_of_class(r, r).
-
-%%	instance_of_class(+Class, -R)
+%%	instance_of_class(+Class, +R) is semidet.
 %
 %	True if R is of rdf:type Class.
 
 instance_of_class(Class, S) :-
-	var(Class), !,
-	rdf_subject(S).
-instance_of_class(Class, S) :-
-	rdf_equal(Class, rdfs:'Resource'), !,
-	rdf_subject(S).
-instance_of_class(Class, S) :-
-	rdfs_individual_of(S, Class),
-	!.
+	(   var(Class)
+	->  rdf_subject(S)
+	;   rdf_equal(Class, rdfs:'Resource')
+	->  rdf_subject(S)
+	;   rdfs_individual_of(S, Class)
+	), !.
 
 		 /*******************************
 		 *    PRESENTATION PROPERTIES   *
 		 *******************************/
 
 :- multifile
-     title_property/1,
-     description_property/1,
-     image_property/1,
-     image_suffix/1.
+	title_property/1,
+	description_property/1,
+	image_property/1,
+	image_suffix/1.
 
 :- rdf_meta
-     title_property(r),
-     description_property(r),
-     image_property(r).
+	title_property(r),
+	description_property(r),
+	image_property(r).
 
 title_property(dc:title).
 title_property(skos:prefLabel).
