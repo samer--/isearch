@@ -5,7 +5,7 @@ body {
 a,
 a:visited {
 	color: #0000EE;
-} 
+}
 a img {
 	border: none;
 }
@@ -174,11 +174,15 @@ ul.resource-list li {
 	padding: 0;
 	margin-bottom: 14px;
 }
+#results li.r:nth-child(even) {
+	background-color: #eee;
+}
 .result-item {
 	clear: both;
 	overflow: auto;
 }
 .result-item .title {
+	font-weight: bold;
 	overflow: auto;
 	margin-bottom: 3px;
 }
@@ -193,7 +197,7 @@ ul.resource-list li {
 	width: 100%;
 }
 .result-item .subtitle {
-
+	font-style: italic;
 }
 .result-item .description {
 	font-size: small;
