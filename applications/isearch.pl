@@ -28,7 +28,9 @@
     the GNU General Public License.
 */
 
-:- module(app_isearch, []).
+:- module(app_isearch,
+	  [ isearch_field//2		% +Query, +Class
+	  ]).
 
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/http_parameters)).
@@ -54,6 +56,7 @@
 	cliopatria:search_pattern/6.
 
 :- rdf_meta
+	isearch_field(+,r,?,?),
 	facet_exclude_property(r),
        	cliopatria:facet_exclude_property(r).
 
@@ -424,7 +427,7 @@ html_start_page(Class) :-
 			   div([style('margin-top:10em')],
 				[ div([style('text-align:center')], \logo),
 				  div([style('text-align:center;padding:0'), id(search)],
-				      \search_field('', Class))])
+				      \isearch_field('', Class))])
 			]).
 
 %%	html_result_page(+Query, +Terms, +Class, +Relations, +Filter,
@@ -476,7 +479,7 @@ html_header(Keyword, Class) -->
 	html(div(class('header-content'),
 		 [ div(id(logo), \logo),
 		   div(id(search),
-		       \search_field(Keyword, Class))
+		       \isearch_field(Keyword, Class))
 		 ])).
 
 html_term_list([], [], _) --> !,
@@ -521,11 +524,12 @@ logo -->
 	},
 	html(a(href(Home), img([alt('logo'), src(Src)], []))).
 
-%%	search_field(+Query, +Class)
+%%	isearch_field(+Query, +Class)//
 %
-%	Emit an html search field.
+%	Component  that  provides  the  initial  search  field  for  the
+%	interactive search application.
 
-search_field(Query, Class) -->
+isearch_field(Query, Class) -->
 	html(form([input([type(text), class(inp), name(q), value(Query)]),
 		   input([type(hidden), name(class), value(Class)]),
 		   input([type(submit), class(btn), value(search)])
