@@ -1100,6 +1100,7 @@ instance_of_class(Class, S) :-
 
 description_property(dc:description).
 description_property(skos:scopeNote).
+description_property(rdfs:comment).
 
 image_property('http://www.vraweb.org/vracore/vracore3#relation.depicts').
 image_suffix('&resize100square').
@@ -1110,8 +1111,10 @@ image_suffix('&resize100square').
 		 *******************************/
 
 %facet_exclude_property(rdf:type).
-facet_exclude_property(dc:title).
-facet_exclude_property(dc:description).
+facet_exclude_property(P) :-
+	label_property(P).
+facet_exclude_property(P) :-
+	description_property(P).
 facet_exclude_property(dc:identifier).
 facet_exclude_property(P) :-
 	cliopatria:facet_exclude_property(P).
