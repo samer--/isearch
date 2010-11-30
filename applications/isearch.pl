@@ -155,9 +155,8 @@ search_pattern(Lit, Class, S, P, _Term, Path) :-
         rdf(S, P, literal(Lit)),
 	instance_of_class(Class, S).
 search_pattern(Lit, Class, S, Rel, Term, Path) :-
-	rdf_equal(LabelP, rdfs:label),
 	Path = [Rel, Term, P, literal(Lit)],
-	rdf_has(Term, LabelP, literal(Lit), P),
+	rdf_has(Term, rdfs:label, literal(Lit), P),
 	rdf(S, Rel, Term),
 	instance_of_class(Class, S).
 search_pattern(Lit, Class, S, P, Term, Path) :-
