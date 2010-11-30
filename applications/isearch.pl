@@ -34,7 +34,6 @@
 
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/http_parameters)).
-:- use_module(library(http/http_request_value)).
 :- use_module(library(http/html_write)).
 :- use_module(library(http/http_wrapper)).
 :- use_module(library(http/http_host)).
