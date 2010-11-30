@@ -16,6 +16,8 @@
 :- use_module(library(semweb/rdf_label)).
 :- use_module(library(settings)).
 
+:- use_module(components(label)).
+
 :- multifile
 	cliopatria:facet_exclude_property/1,		% ?Resource
 	cliopatria:format_search_result/4,
@@ -516,33 +518,15 @@ format_result(R, _SearchInfo) -->
 		 [ div(class(thumbnail),
 		       \result_image(R)),
 		   div(class(text),
-		       [ div(class(title),
-			     a(href(R), \result_title(R))),
-			 div(class(subtitle), \result_subtitle(R)),
+		       [ div(class(title),       \rdf_link(R)),
+			 div(class(subtitle),    \result_subtitle(R)),
 			 div(class(description), \result_description(R))
 		       ])
 		 ])).
 
-result_title(R) -->
-	{ (   title_property(P),
-	      rdf_has(R, P, Lit)
-	  ->  literal_text(Lit, Label)
-	  ;   rdfs_label(R, Label)
-	  )
-	},
-	html(Label).
 result_subtitle(R) -->
-	{ (   rdf_has(R, dc:creator, C)
-	  ->  display_label(C, Creator)
-	  ;   Creator = ''
-	  ),
-	  (   rdf_has(R, dc:date, D)
-	  ->  literal_text(D, DateTxt),
-	      Date = [' (', DateTxt, ')']
-	  ;   Date = []
-	  )
-	},
-	html([Creator|Date]).
+	result_creator(R),
+	result_date(R).
 result_description(R) -->
 	{ description_property(P),
 	  rdf_has(R, P, LitDesc),
@@ -552,6 +536,19 @@ result_description(R) -->
 	!,
 	html(Desc).
 result_description(_R) --> !.
+
+result_creator(R) -->
+	{ rdf_has(R, dc:creator, C) }, !,
+	rdf_link(C).
+result_creator(_) --> [].
+
+result_date(R) -->
+	{ rdf_has(R, dc:date, D), !,
+	  literal_text(D, DateTxt)
+	},
+	html([' (', DateTxt, ')']).
+result_date(_) --> [].
+
 
 result_image(R) -->
 	{ image_property(P),
