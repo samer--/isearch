@@ -438,10 +438,7 @@ related(S, O, P) :-
 filter_results_by_facet(AllResults, [], AllResults) :- !.
 filter_results_by_facet(AllResults, Filter, Results) :-
 	filter_to_goal(Filter, R, Goal),
-	include(r_goal(R, Goal), AllResults, Results).
-
-r_goal(R, Goal, R) :-
-	call(Goal).
+	findall(R, (member(R, AllResults), Goal), Results).
 
 filter_to_goal([], _, true).
 filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
