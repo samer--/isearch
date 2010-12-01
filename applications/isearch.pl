@@ -45,6 +45,7 @@
 :- use_module(library(semweb/rdfs)).
 :- use_module(library(semweb/rdf_litindex)).
 :- use_module(library(semweb/rdf_label)).
+:- use_module(library(semweb/rdf_abstract)).
 :- use_module(library(settings)).
 
 :- use_module(components(label)).
@@ -138,6 +139,7 @@ http_interactive_search(Request) :-
 
 	    keyword_search_graph(case(Keyword), instance_of_class(Class),
 				 AllResults, Graph),
+
 	    restrict_by_terms(Terms, AllResults, Graph, ResultsWithTerm),
 	    assertion(sort(ResultsWithTerm, ResultsWithTerm)),
 	    restrict_by_relations(Relations, ResultsWithTerm, Graph,
@@ -190,9 +192,17 @@ keyword_search_graph(Query, Filter, Targets, Graph) :-
 	rdf_find_literals(Query, Literals),
 	findall(Target-G, keyword_graph(Literals, Filter, Target, G), TGPairs),
 	pairs_keys_values(TGPairs, Targets0, GraphList),
-	sort(Targets0, Targets),
+	sort(Targets0, Targets1),
 	append(GraphList, Graph0),
-	sort(Graph0, Graph).
+	sort(Graph0, Graph1),
+	merge_sameas_graph(Graph1, Graph2, [sameas_mapped(Map)]),
+	sort(Graph2, Graph),
+	maplist(map_over_assoc(Map), Targets1, Targets2),
+	sort(Targets2, Targets).
+
+map_over_assoc(Assoc, In, Out) :-
+	get_assoc(In, Assoc, Out), !.
+map_over_assoc(_, In, In).
 
 keyword_graph(Literals, Filter, Target, Graph) :-
 	member(L, Literals),
