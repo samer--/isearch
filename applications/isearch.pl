@@ -140,18 +140,12 @@ http_interactive_search(Request) :-
 				 AllResults, Graph),
 	    restrict_by_terms(Terms, AllResults, Graph, ResultsWithTerm),
 	    assertion(sort(ResultsWithTerm, ResultsWithTerm)),
-	    restrict_by_relations(Relations, ResultsWithTerm, Graph, Results),
+	    restrict_by_relations(Relations, ResultsWithTerm, Graph,
+				  ResultsWithRelation),
+	    filter_results_by_facet(ResultsWithRelation, Filter, Results),
+	    facets(Results, ResultsWithTerm, Filter, Facets),
 
-/*
-%_TBD,
-	    filter_results_by_facet(TermResults, Filter, FilteredResults),
-
-	    facets(FilteredURIs, TermResultURIs, Filter, Facets),
-*/
-
-	    NumberOfRelationResults = 0,
-	    Facets = [],
-
+	    length(ResultsWithRelation, NumberOfRelationResults),
 	    length(Results, NumberOfResults),
 	    list_offset(Results, Offset, OffsetResults),
 	    list_limit(OffsetResults, Limit, LimitedResults, _),
@@ -427,40 +421,17 @@ related(S, O, P) :-
 	\+ rdf_eq(S, IP, O).
 
 
-/*
-%%	result_relations(+SearchResults, -Relations, -ResultsByRelation)
-%
-%	Relations are all predicates in the search paths directly
-%	related to the results. ResultsByRelations groups the
-%	results by these relations.
-
-result_relations([], [], []) :- !.
-result_relations(_, [], []) :-
-	setting(search:show_relations, false), !.
-result_relations(Results, Relations, ResultsByRelation) :-
-	results_by_relation(Results, ResultsByRelation),
-	pairs_sort_by_result_count(ResultsByRelation, Relations).
-
-results_by_relation(Results, ResultsByRelation) :-
-	Result = result(_, _, _, R, _),
-	findall(R-Result, member(Result, Results), RelationResults0),
-	keysort(RelationResults0, RelationResults),
-	group_pairs_by_key(RelationResults, ResultsByRelation).
-*/
-
-
 %%	filter_results_by_facet(+Rs, +Filter, -Filtered)
 %
 %	Filtered contains the resources from Rs that pass Filter.
 
-filter_results_by_facet(Rs, [], Rs) :- !.
-filter_results_by_facet(Rs, Filter, FilteredResults) :-
+filter_results_by_facet(AllResults, [], AllResults) :- !.
+filter_results_by_facet(AllResults, Filter, Results) :-
 	filter_to_goal(Filter, R, Goal),
-	Result = result(R,_,_,_,_),
-	findall(Result, (member(Result, Rs),
-			 call(Goal)
-			),
-		FilteredResults).
+	include(r_goal(R, Goal), AllResults, Results).
+
+r_goal(R, Goal, R) :-
+	call(Goal).
 
 filter_to_goal([], _, true).
 filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
@@ -506,22 +477,20 @@ result_uris(Results, URIs) :-
 	findall(S, member(result(S, _,_,_,_), Results), URIs0),
 	sort(URIs0, URIs).
 
-
-%%	facets(+Results, -Facets)
+%%	facets(+Results, +AllResults, +Filter, -Facets)
 %
 %	Collect faceted properties of Results.
 
 facets([], _, _, []) :- !.
 facets(_, _, _, []) :-
-	setting(search:show_facets, false),
-	!.
+	setting(search:show_facets, false), !.
 facets(FilteredResults, AllResults, Filter, Facets) :-
  	findall(facet(P, Values, []),
-	      (	  facet_values(P, FilteredResults, Values),
- 		  \+ memberchk(prop(P,_), Filter),
-		  \+ facet_exclude_property(P)
-	      ),
-	      Facets0),
+		(   facet_values(P, FilteredResults, Values),
+		    \+ memberchk(prop(P,_), Filter),
+		    \+ facet_exclude_property(P)
+		),
+		Facets0),
 	findall(facet(P, Values, Selected),
 		(   select(prop(P, Selected), Filter, FilterRest),
 		    filter_to_goal(FilterRest, R, Goal),
@@ -556,8 +525,8 @@ facet_property(S, P, V) :-
 
 super_property(P0, Super) :-
 	findall(P, ( rdf_reachable(P0, rdfs:subPropertyOf, P),
-		      \+ rdf(P, rdfs:subPropertyOf, _)
-		    ),Ps0),
+		     \+ rdf(P, rdfs:subPropertyOf, _)
+		   ),Ps0),
 	sort(Ps0, Ps),
 	member(Super, Ps).
 
