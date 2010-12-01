@@ -52,7 +52,7 @@
 :- multifile
 	cliopatria:facet_exclude_property/1,		% ?Resource
 	cliopatria:format_search_result/4,
-	cliopatria:search_pattern/6.
+	cliopatria:search_pattern/3.		% +Start, -Result, -Graph
 
 :- rdf_meta
 	isearch_field(+,r,?,?),
@@ -164,35 +164,36 @@ http:convert_parameter(json, Atom, Term) :-
 	atom_json_term(Atom, JSON, []),
 	json_to_prolog(JSON, Term).
 
-%%	keyword_search_results(+Keyword, +Class, -Results)
+%%	keyword_search_graph(+Query, -Targets, -Graph) is det.
 %
-%	Results are resources related to Keyword and of type Class.
+%	@param	Targets is an ordered set of resources that match Query
+%	@param	Graph is a list of rdf(S,P,O) triples that forms a
+%		justification for Targets
 
-keyword_search_results('', _, []) :- !.
-keyword_search_results(Query, Class, Results) :-
-	R = result(S, Lit, T, Rel, Path),
-	findall(R, search_result(Query, Class, S, Lit, T, Rel, Path), Results).
+keyword_search_graph(Query, Targets, Graph) :-
+	rdf_find_literals(Query, Literals),
+	findall(Target-G, keyword_graph(Literals, Target, G), TGPairs),
+	pairs_keys_values(TGPairs, Targets0, GraphList),
+	sort(Targets0, Targets),
+	append(GraphList, Graph0),
+	sort(Graph0, Graph).
 
-search_result(Query, Class, S, _Lit, Query, P, [P,Query]) :-
-	rdf(_,_,Query), !,
-	rdf(S, P, Query),
-	instance_of_class(Class, S).
-search_result(Query, Class, S, Lit, Term, Rel, Path) :-
-	rdf_find_literals(case(Query), Literals),
-	member(Lit, Literals),
-	search_pattern(Lit, Class, S, Rel, Term, Path).
+keyword_graph(Literals, Target, Graph) :-
+	member(L, Literals),
+	search_pattern(L, Target, Graph).
 
-search_pattern(Lit, Class, S, P, _Term, Path) :-
-	Path = [P, literal(Lit)],
-        rdf(S, P, literal(Lit)),
-	instance_of_class(Class, S).
-search_pattern(Lit, Class, S, Rel, Term, Path) :-
-	Path = [Rel, Term, P, literal(Lit)],
-	rdf_has(Term, rdfs:label, literal(Lit), P),
-	rdf(S, Rel, Term),
-	instance_of_class(Class, S).
-search_pattern(Lit, Class, S, P, Term, Path) :-
-	cliopatria:search_pattern(Lit, Class, S, P, Term, Path).
+search_pattern(Label, Target,
+	       [ rdf(Target, P, literal(Value))
+	       ]) :-
+	rdf(Target, P, literal(exact(Label), Value)).
+search_pattern(Label, Target,
+	       [ rdf(Target, P, Term),
+		 rdf(Term, LP, literal(Value))
+	       ]) :-
+	rdf_has(Term, rdfs:label, literal(exact(Label), Value), LP),
+	rdf(Target, P, Term).
+search_pattern(Label, Target, Graph) :-
+	cliopatria:search_pattern(Label, Target, Graph).
 
 
 %%	result_terms(+SearchResults, -Terms, -ResultsByTerms)
