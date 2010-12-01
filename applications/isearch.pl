@@ -102,59 +102,79 @@ http_interactive_search(Request) :-
 	setting(search:result_limit, DefaultLimit),
 	http_parameters(Request,
 			[ q(Keyword,
-				[optional(true), description('Search query')]),
+			    [ optional(true),
+			      description('Search query')
+			    ]),
 			  class(Class,
-				[default(TargetClass), description('Target Class')]),
+				[ default(TargetClass),
+				  description('Target Class')
+				]),
 			  term(Terms,
-			       [zero_or_more,
-				description('Disambiguation term')]),
+			       [ zero_or_more,
+				 description('Disambiguation term')
+			       ]),
 			  relation(Relations,
-				   [zero_or_more,
-				    description('Limit results by specific relation')]),
+				   [ zero_or_more,
+				     description('Limit results by specific relation')
+				   ]),
  			  filter(Filter,
-				 [default([]), json,
-				  description('Filters on the result set')]),
+				 [ default([]), json,
+				   description('Filters on the result set')
+				 ]),
 			  offset(Offset,
-				[default(0), integer, description('Offset of the result list')]),
+				 [ default(0), integer,
+				   description('Offset of the result list')
+				 ]),
 			  limit(Limit,
-				[default(DefaultLimit), integer,
-				 description('Limit on the number of results')])
+				[ default(DefaultLimit), integer,
+				  description('Limit on the number of results')
+				])
 			]),
 	(   var(Keyword)
 	->  html_start_page(Class)
-	;   keyword_search_results(Keyword, Class, Results),
-	    result_terms(Results, MatchingTerms, ResultsByTerm),
-	    related_terms(Terms, Class, RelatedTerms),
-	    select_results_by_key(Terms, ResultsByTerm, Results, TermResults),
+	;   Query = query(Keyword,
+			  Class, Terms, Relations, Filter,
+			  Offset, Limit),
+
+	    keyword_search_graph(case(Keyword), instance_of_class(Class),
+				 AllResults, Graph),
+	    restrict_by_terms(Terms, AllResults, Graph, ResultsWithTerm),
+	    assertion(sort(ResultsWithTerm, ResultsWithTerm)),
+	    restrict_by_relations(Relations, ResultsWithTerm, Graph, Results),
+
+/*
+%_TBD,
 	    filter_results_by_facet(TermResults, Filter, FilteredResults),
-	    result_relations(FilteredResults, MatchingRelations, ResultsByRelation),
-	    select_results_by_key(Relations, ResultsByRelation, FilteredResults, RelationResults),
 
-	    result_uris(TermResults, TermResultURIs),
-	    result_uris(FilteredResults, FilteredURIs),
 	    facets(FilteredURIs, TermResultURIs, Filter, Facets),
+*/
 
-	    results_by_uri(RelationResults, ResultPairs),
-	    length(ResultPairs, NumberOfResults),
-	    length(FilteredURIs, NumberOfRelationResults),
+	    NumberOfRelationResults = 0,
+	    Facets = [],
 
-	    list_offset(ResultPairs, Offset, OffsetResults),
+	    length(Results, NumberOfResults),
+	    list_offset(Results, Offset, OffsetResults),
 	    list_limit(OffsetResults, Limit, LimitedResults, _),
 
- 	    html_result_page(query(Keyword, Class, Terms, Relations, Filter, Offset, Limit),
+	    graph_terms(Graph, MatchingTerms),
+	    result_relations(ResultsWithTerm, Graph, MatchingRelations),
+	    related_terms(Terms, Class, RelatedTerms),
+
+ 	    html_result_page(Query,
 			     result(LimitedResults, NumberOfResults, NumberOfRelationResults),
 			     MatchingTerms, RelatedTerms,
 			     MatchingRelations, Facets)
   	).
 
+
 % conversion of json parameters.
 
 :- json_object
-     prop(prop:atom, values:_),
-     literal(literal:atom),
-     literal(literal:_),
-     type(type:atom, text:atom),
-     lang(lang:atom, text:atom).
+	prop(prop:atom, values:_),
+	literal(literal:atom),
+	literal(literal:_),
+	type(type:atom, text:atom),
+	lang(lang:atom, text:atom).
 
 %%	http:convert_parameter(+Type, +Text, -Value) is semidet.
 %
@@ -164,23 +184,29 @@ http:convert_parameter(json, Atom, Term) :-
 	atom_json_term(Atom, JSON, []),
 	json_to_prolog(JSON, Term).
 
-%%	keyword_search_graph(+Query, -Targets, -Graph) is det.
+%%	keyword_search_graph(+Query, :Filter, -Targets, -Graph) is det.
 %
+%	@param  Filter is called as call(Filter, Resource) to filter
+%		the results.  The filter =true= performs no filtering.
 %	@param	Targets is an ordered set of resources that match Query
 %	@param	Graph is a list of rdf(S,P,O) triples that forms a
 %		justification for Targets
 
-keyword_search_graph(Query, Targets, Graph) :-
+keyword_search_graph(Query, Filter, Targets, Graph) :-
 	rdf_find_literals(Query, Literals),
-	findall(Target-G, keyword_graph(Literals, Target, G), TGPairs),
+	findall(Target-G, keyword_graph(Literals, Filter, Target, G), TGPairs),
 	pairs_keys_values(TGPairs, Targets0, GraphList),
 	sort(Targets0, Targets),
 	append(GraphList, Graph0),
 	sort(Graph0, Graph).
 
-keyword_graph(Literals, Target, Graph) :-
+keyword_graph(Literals, Filter, Target, Graph) :-
 	member(L, Literals),
-	search_pattern(L, Target, Graph).
+	search_pattern(L, Target, Graph),
+	(   Filter = _:true
+	->  true
+	;   call(Filter, Target)
+	).
 
 search_pattern(Label, Target,
 	       [ rdf(Target, P, literal(Value))
@@ -196,28 +222,164 @@ search_pattern(Label, Target, Graph) :-
 	cliopatria:search_pattern(Label, Target, Graph).
 
 
-%%	result_terms(+SearchResults, -Terms, -ResultsByTerms)
+%%	graph_terms(+Graph, -TermSet) is det.
 %
-%	Terms are all resources in the search paths directly related to
-%	the results. ResultsByTerms groups the results by these
-%	terms.
+%	TermSet is an ordered set  of  _terms_   in  Graph.  a _term_ is
+%	defined as a resource found through a literal using its label.
 
-result_terms([], [], []) :- !.
-result_terms(_, [], []) :-
-	setting(search:show_disambiguations, false),
-	!.
-result_terms(Results, Terms, ResultsByTerm) :-
-	results_by_term(Results, ResultsByTerm),
-	pairs_sort_by_result_count(ResultsByTerm, Terms).
+graph_terms(Graph, TermSet) :-
+	graph_terms_(Graph, Terms),
+	sort(Terms, TermSet).
 
-results_by_term(Results, ResultsByTerm) :-
-	Result = result(_, _, T, _, _),
-	findall(T-Result, (member(Result, Results),
-		      nonvar(T)
-		     ),
-		TermResults0),
-	keysort(TermResults0, TermResults),
-	group_pairs_by_key(TermResults, ResultsByTerm).
+graph_terms_([], []).
+graph_terms_([rdf(S,P,L)|T], Terms) :-
+	(   rdf_is_literal(L),
+	    rdfs_subproperty_of(P, rdfs:label)
+	->  Terms = [S|More],
+	    graph_terms_(T, More)
+	;   graph_terms_(T, Terms)
+	).
+
+%%	restrict_by_terms(+Terms, +AllResults, +Graph, -Results) is det
+%
+%	Results is the subset of AllResults that  have at least one term
+%	from Terms in their justification.
+
+restrict_by_terms([], Results, _, Results) :- !.
+restrict_by_terms(Terms, Results, Graph, TermResults) :-
+	sort(Terms, TermSet),
+	result_terms(Results, Graph, Result_Terms),
+	matches_term(Result_Terms, TermSet, TermResults).
+
+matches_term([], _, []).
+matches_term([R-TL|T0], Terms, Results) :-
+	(   ord_intersect(Terms, TL)
+	->  Results = [R|More],
+	    matches_term(T0, Terms, More)
+	;   matches_term(T0, Terms, Results)
+	).
+
+result_terms(Results, Graph, Result_Terms) :-
+	result_justifications(Results, Graph, TermJusts),
+	maplist(value_graph_terms, TermJusts, Result_Terms).
+
+value_graph_terms(R-G, R-T) :-
+	graph_terms(G, T).
+
+%%	result_relations(+Results, +Graph, -RelationSet) is det.
+%
+%	RelationSet is the set of all  predicates on the result-set that
+%	appear in Graph.
+
+result_relations(Results, Graph, Relations) :-
+	map_list_to_pairs(=, Results, Pairs),
+	list_to_assoc(Pairs, ResultAssoc),
+	empty_assoc(R0),
+	result_relations(Graph, ResultAssoc, R0, R),
+	assoc_to_keys(R, Relations).
+
+result_relations([], _, R, R).
+result_relations([rdf(S,P,_)|T], Results, R0, R) :-
+	(   get_assoc(P, R0, _)
+	->  result_relations(T, Results, R0, R)
+	;   get_assoc(S, Results, _)
+	->  put_assoc(P, R0, true, R1),
+	    result_relations(T, Results, R1, R)
+	;   result_relations(T, Results, R0, R)
+	).
+
+%%	restrict_by_relations(+Relations, +AllResults, +Graph, -Result)
+%
+%	Restrict the result  to  results  that   are  based  on  one  of
+%	Relations.
+%
+%	@param Relations is a list of (predicate) URIs.
+%	@param AllResults is an ordered set of URIs
+%	@param Graph is an ordered set of rdf(S,P,O)
+%	@param Result is an ordered set of URIs
+
+restrict_by_relations([], AllResults, _, AllResults) :- !.
+restrict_by_relations(_, [], _, []) :- !.
+restrict_by_relations(Relations, [R0|R], [T0|T], Results) :-
+	cmp_subject(Diff, R0, T0),
+	rel_restrict(Diff, R0, R, T0, T, Relations, Results).
+
+rel_restrict(=, R0, R, T0, T, Relations, Result) :-
+	(   rel_in(T0, Relations)
+	->  Result = [R0|More],
+	    restrict_by_relations(Relations, R, T, More)
+	;   T = [T1|TT]
+	->  cmp_subject(Diff, R0, T1),
+	    rel_restrict(Diff, R0, R, T1, TT, Relations, Result)
+	;   Result = []
+	).
+rel_restrict(>, R0, R, _, Graph, Relations, Result) :-
+	(   Graph = [T0|T]
+	->  cmp_subject(Diff, R0, T0),
+	    rel_restrict(Diff, R0, R, T0, T, Relations, Result)
+	;   Result = []
+	).
+rel_restrict(<, _, AllResults, T0, T, Relations, Result) :-
+	(   AllResults = [R0|R]
+	->  cmp_subject(Diff, R0, T0),
+	    rel_restrict(Diff, R0, R, T0, T, Relations, Result)
+	;   Result = []
+	).
+
+cmp_subject(Diff, R, rdf(S,_,_)) :-
+	compare(Diff, R, S).
+
+rel_in(rdf(_,P,_), Relations) :-
+	memberchk(P, Relations).
+
+%%	result_justifications(+Results, +Graph, -ResultGraphs)
+%
+%	ResultGraphs is a pair-list Result-SubGraph,  where Graph is the
+%	transitive closure of Result in Graph.   ResultGraphs  is in the
+%	same order as Results.
+
+result_justifications(Results, Graph, Pairs) :-
+	graph_subject_assoc(Graph, Assoc),
+	maplist(result_justification(Assoc), Results, Pairs).
+
+result_justification(SubjectAssoc, Result, Result-Graph) :-
+	result_justification(Result, SubjectAssoc, [], _, Graph, []).
+
+result_justification(Result, SubjectAssoc, S0, S, Graph, GT) :-
+	(   memberchk(Result, S0)
+	->  Graph = GT,
+	    S = S0
+	;   get_assoc(Result, SubjectAssoc, POList)
+	->  po_result_just(POList, Result, SubjectAssoc,
+			   [Result|S0], S, Graph, GT)
+	;   Graph = GT,
+	    S = S0
+	).
+
+po_result_just([], _, _, S, S, Graph, Graph).
+po_result_just([P-O|T], R, SubjectAssoc, S0, S, [rdf(R,P,O)|Graph], GT) :-
+	result_justification(O, SubjectAssoc, S0, S1, Graph, GT1),
+	po_result_just(T, R, SubjectAssoc, S1, S, GT1, GT).
+
+graph_subject_assoc(Graph, Assoc) :-
+	rdf_s_po_pairs(Graph, Pairs),
+	list_to_assoc(Pairs, Assoc).
+
+%%	rdf_s_po_pairs(+Graph, -S_PO_Pairs) is det.
+%
+%	Transform Graph into a list of  pairs, where each key represents
+%	a unique resource in Graph and each value is a p-o pairlist.
+%
+%	@param Graph is an ordered set of rdf(S,P,O) triples.
+
+rdf_s_po_pairs([], []).
+rdf_s_po_pairs([rdf(S,P,O)|T], [S-[P-O|M]|Graph]) :-
+	same_s(S, T, M, T1),
+	rdf_s_po_pairs(T1, Graph).
+
+same_s(S, [rdf(S,P,O)|T], [P-O|M], Rest) :- !,
+	same_s(S, T, M, Rest).
+same_s(_, Graph, [], Graph).
 
 
 %%	related_terms(+ResultTerms, +Class, -RelatedTerms)
@@ -265,16 +427,16 @@ related(S, O, P) :-
 	\+ rdf_eq(S, IP, O).
 
 
+/*
 %%	result_relations(+SearchResults, -Relations, -ResultsByRelation)
 %
-%	Relations are all predicates in the search paths direclty
+%	Relations are all predicates in the search paths directly
 %	related to the results. ResultsByRelations groups the
 %	results by these relations.
 
 result_relations([], [], []) :- !.
 result_relations(_, [], []) :-
-	setting(search:show_relations, false),
-	!.
+	setting(search:show_relations, false), !.
 result_relations(Results, Relations, ResultsByRelation) :-
 	results_by_relation(Results, ResultsByRelation),
 	pairs_sort_by_result_count(ResultsByRelation, Relations).
@@ -284,6 +446,7 @@ results_by_relation(Results, ResultsByRelation) :-
 	findall(R-Result, member(Result, Results), RelationResults0),
 	keysort(RelationResults0, RelationResults),
 	group_pairs_by_key(RelationResults, ResultsByRelation).
+*/
 
 
 %%	filter_results_by_facet(+Rs, +Filter, -Filtered)
@@ -312,18 +475,18 @@ pred_filter([Value|Vs], P, R, Goal) :-
 
 
 %%	select_results_by_key(+Keys, +SearchResultsByKey,
-%%	+SearchResults, -SelectedResults)
+%%			      +SearchResults, -SelectedResults)
 %
 %	SelectedResults contains the results grouped by Keys.
 
 select_results_by_key([], _, Results, Results) :- !.
 select_results_by_key(Keys, ResultsByKey, _, SelectedResults) :-
 	findall(R,
-		(	member(Key, Keys),
-			memberchk(Key-R, ResultsByKey)
+		(   member(Key, Keys),
+		    memberchk(Key-R, ResultsByKey)
 		),
 		Rs),
-	flatten(Rs, SelectedResults).
+	append(Rs, SelectedResults).
 
 %%	results_by_uri(+Results, -ResultsGroupedByURI)
 %
@@ -438,7 +601,9 @@ html_start_page(Class) :-
 %	results and a right column with faceted filters.
 
 html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
-	QueryObj = query(Keyword, Class, SelectedTerms, SelectedRelations, Filter, Offset, Limit),
+	QueryObj = query(Keyword,
+			 Class, SelectedTerms, SelectedRelations, Filter,
+			 Offset, Limit),
 	ResultObj = result(Results, NumberOfResults, NumberOfRelationResults),
 	reply_html_page(user(isearch),
 			[ title(['Search results for ', Keyword])
@@ -540,13 +705,11 @@ isearch_field(Query, Class) -->
 %	Emit HTML list with resources.
 
 html_result_list([]) --> !.
-html_result_list([R-SearchInfo|Rs]) -->
-	html(li(class(r), \format_result(R, SearchInfo))),
+html_result_list([R|Rs]) -->
+	html(li(class(r), \format_result(R))),
 	html_result_list(Rs).
 
-format_result(R, SearchInfo, In, Out) :-
-	cliopatria:format_search_result(R, SearchInfo, In, Out), !.
-format_result(R, _SearchInfo) -->
+format_result(R) -->
 	html(div(class('result-item'),
 		 [ div(class(thumbnail),
 		       \result_image(R)),
@@ -1048,33 +1211,21 @@ pairs_result_count([Key-Results|T], [Count-Key|Rest]) :-
 %
 %	SmallerList starts at the nth element of List.
 
-list_offset(L, N, []) :-
-	length(L, Length),
-	Length < N,
-	!.
-list_offset(L, N, L1) :-
-	list_offset_(L, N, L1).
-
-list_offset_(L, 0, L) :- !.
-list_offset_([_|T], N, Rest) :-
+list_offset([], _, []) :- !.
+list_offset(L, 0, L) :- !.
+list_offset([_|T], N, Rest) :-
 	N1 is N-1,
-	list_offset_(T, N1, Rest).
+	list_offset(T, N1, Rest).
 
 %%	list_limit(+List, +N, -SmallerList, -Rest)
 %
 %	SmallerList ends at the nth element of List.
 
-list_limit(L, N, L, []) :-
-	length(L, Length),
-	Length < N,
-	!.
-list_limit(L, N, L1, Rest) :-
-	list_limit_(L, N, L1, Rest).
-
-list_limit_(Rest, 0, [], Rest) :- !.
-list_limit_([H|T], N, [H|T1], Rest) :-
+list_limit([], _, [], []) :- !.
+list_limit(Rest, 0, [], Rest) :- !.
+list_limit([H|T], N, [H|T1], Rest) :-
 	N1 is N-1,
-	list_limit_(T, N1, T1, Rest).
+	list_limit(T, N1, T1, Rest).
 
 %%	instance_of_class(+Class, +R) is semidet.
 %
