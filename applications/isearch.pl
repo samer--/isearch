@@ -803,7 +803,8 @@ html_relation_list(Relations, Selected, NumberOfResults) -->
 	  list_limit(Relations, Limit, TopN, Rest)
  	},
 	html(div(id(relations),
-		 [ div(class('relations-header'), [NumberOfResults, ' result found by: ']),
+		 [ div(class('relations-header'),
+		       [ NumberOfResults, ' result found by: ' ]),
 		   div(class('relations-content'),
 		       [ \resource_list(TopN, Selected),
 			 \resource_rest_list(Rest, relation, Selected)
