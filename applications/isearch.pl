@@ -455,30 +455,6 @@ pred_filter([Value|Vs], P, R, Goal) :-
 	pred_filter(Vs, P, R, Rest).
 
 
-%%	select_results_by_key(+Keys, +SearchResultsByKey,
-%%			      +SearchResults, -SelectedResults)
-%
-%	SelectedResults contains the results grouped by Keys.
-
-select_results_by_key([], _, Results, Results) :- !.
-select_results_by_key(Keys, ResultsByKey, _, SelectedResults) :-
-	findall(R,
-		(   member(Key, Keys),
-		    memberchk(Key-R, ResultsByKey)
-		),
-		Rs),
-	append(Rs, SelectedResults).
-
-%%	results_by_uri(+Results, -ResultsGroupedByURI)
-%
-%	Group the result terms by unique URIs.
-
-results_by_uri(Results, ResultsByURI) :-
-	Result = result(S, _, _, _, _),
-	findall(S-Result, member(Result, Results), URIResults0),
-	keysort(URIResults0, URIResults),
-	group_pairs_by_key(URIResults, ResultsByURI).
-
 %%	result_uris(ResultObjects, -URIs)
 %
 %	URIs are the uris of the results in ResultObjects.
@@ -518,6 +494,7 @@ facet_values(P, Results, ResultsByValue) :-
 		    Rs
 		   ),
 	      ResultsByValue).
+
 facet_values(P, Results, Goal, R, ResultsByValue) :-
 	bagof(V-Rs,
 	      setof(R,
@@ -539,7 +516,6 @@ super_property(P0, Super) :-
 		   ),Ps0),
 	sort(Ps0, Ps),
 	member(Super, Ps).
-
 
 rdf_eq(S, P, O) :-
 	rdf(S, P, O).
@@ -1014,8 +990,9 @@ toggle_link(ToggleId, BodyId, Label, Shown, Hidden) -->
 					       [\''+Shown+'\',\''+Hidden+'\']);')
 		    ], Label)).
 
+
 		 /*******************************
-		 *	    javascript      	*
+		 *	    JAVASCRIPT      	*
 		 *******************************/
 
 script_data(Query, Class, Terms, Relations, Filter) -->
@@ -1164,8 +1141,7 @@ request_url_components(Request, [ protocol(http),
 	),
 	option(search(Search), Request, []).
 
-%%	pairs_sort_by_result_count(+Pairs:key-list,
-%%	-Sorted:listcount-key)
+%%	pairs_sort_by_result_count(+Pairs:key-list, -Sorted:listcount-key)
 %
 %	Sorted is a list with the keys of Pairs sorted by the number of
 %	elements in the value list.
@@ -1250,6 +1226,7 @@ facet_exclude_property(P) :-
 facet_exclude_property(P) :-
 	description_property(P).
 facet_exclude_property(dc:identifier).
+facet_exclude_property(owl:sameAs).
 facet_exclude_property(P) :-
 	cliopatria:facet_exclude_property(P).
 
