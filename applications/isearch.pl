@@ -137,15 +137,20 @@ http_interactive_search(Request) :-
 			  Class, Terms, Relations, Filter,
 			  Offset, Limit),
 
+					% search
 	    keyword_search_graph(case(Keyword), instance_of_class(Class),
 				 AllResults, Graph),
 
+					% limit by related terms
 	    restrict_by_terms(Terms, AllResults, Graph, ResultsWithTerm),
-	    assertion(sort(ResultsWithTerm, ResultsWithTerm)),
+
+					% limit by predicate on target
 	    restrict_by_relations(Relations, ResultsWithTerm, Graph,
 				  ResultsWithRelation),
+
+					% limit by facet-value
 	    filter_results_by_facet(ResultsWithRelation, Filter, Results),
-	    facets(Results, ResultsWithTerm, Filter, Facets),
+	    facets(Results, ResultsWithRelation, Filter, Facets),
 
 	    length(ResultsWithRelation, NumberOfRelationResults),
 	    length(Results, NumberOfResults),
@@ -466,14 +471,6 @@ pred_filter([Value|Vs], P, R, Goal) :-
 	Goal =  (rdf_has(R, P, Value); Rest),
 	pred_filter(Vs, P, R, Rest).
 
-
-%%	result_uris(ResultObjects, -URIs)
-%
-%	URIs are the uris of the results in ResultObjects.
-
-result_uris(Results, URIs) :-
-	findall(S, member(result(S, _,_,_,_), Results), URIs0),
-	sort(URIs0, URIs).
 
 %%	facets(+Results, +AllResults, +Filter, -Facets)
 %
@@ -1163,12 +1160,7 @@ pairs_sort_by_result_count(Grouped, Sorted) :-
 
 pairs_result_count([], []).
 pairs_result_count([Key-Results|T], [Count-Key|Rest]) :-
-	(   Results = [H|_],
-	    atom(H)
-	->  length(Results, Count)
-	;   result_uris(Results, URIs)
-	),
-	length(URIs, Count),
+	length(Results, Count),
 	pairs_result_count(T, Rest).
 
 
