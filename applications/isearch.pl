@@ -31,7 +31,6 @@
 :- module(app_isearch,
 	  [ isearch_field//2		% +Query, +Class
 	  ]).
-
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/http_parameters)).
 :- use_module(library(http/html_write)).
@@ -48,6 +47,7 @@
 :- use_module(library(semweb/rdf_abstract)).
 :- use_module(library(semweb/owl_sameas)).
 :- use_module(library(settings)).
+:- use_module(library(apply)).
 
 :- use_module(components(label)).
 
@@ -63,8 +63,11 @@
 
 % declare application settings
 %
-% Do not change these here. Instead use :- set_setting(type, value) in
-% your startup file.
+% Do not change these here. Instead use this in your startup file:
+%
+%	==
+%	:- set_setting_default(id, value).
+%	==
 
 :- setting(search:target_class, uri, rdfs:'Resource',
 	   'Default search target').
@@ -88,10 +91,6 @@
 	  'Maximum number of items shown in the term disambiguation list').
 :- setting(search:relation_limit, integer, 5,
 	  'Maximum number of relations shown').
-
-% appearence
-:- setting(search:logo, atom, '',
-	   'Img shown as a logo on the page').
 
 :- http_handler(root(isearch), http_interactive_search, [id(isearch)]).
 
@@ -550,7 +549,8 @@ facet_merge_sameas(facet(P, VRPairs0, SelectedValues0),
 	pairs_keys(VRPairs0, Values),
 	owl_sameas_map(default, Values, Map),
 	maplist(map_key(Map), VRPairs0, VRPairs1),
-	group_pairs_by_key(VRPairs1, Grouped),
+	sort(VRPairs1, VRPairs2),
+	group_pairs_by_key(VRPairs2, Grouped),
 	maplist(union_results, Grouped, VRPairs),
 	maplist(map_resource(Map), SelectedValues0, SelectedValues).
 
@@ -580,7 +580,7 @@ map_resource(Map, R0, R) :-
 %	Emit an html page with a search field
 
 html_start_page(Class) :-
-	reply_html_page(search,
+	reply_html_page(user(search),
 			title('Search'),
 			[  \html_requires(css('interactive_search.css')),
 			   div([style('margin-top:10em')],
@@ -680,10 +680,9 @@ html_facet_list_(Facets) -->
 %	Emit a logo
 
 logo -->
-	{ setting(search:logo, Src),
-	  http_location_by_id(http_interactive_search, Home)
+	{ http_location_by_id(http_interactive_search, Home)
 	},
-	html(a(href(Home), img([alt('logo'), src(Src)], []))).
+	html(a([class(isearch_logo), href(Home)], '')).
 
 %%	isearch_field(+Query, +Class)//
 %
