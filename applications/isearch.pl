@@ -46,6 +46,7 @@
 :- use_module(library(semweb/rdf_litindex)).
 :- use_module(library(semweb/rdf_label)).
 :- use_module(library(semweb/rdf_abstract)).
+:- use_module(library(semweb/owl_sameas)).
 :- use_module(library(settings)).
 
 :- use_module(components(label)).
@@ -150,7 +151,8 @@ http_interactive_search(Request) :-
 
 					% limit by facet-value
 	    filter_results_by_facet(ResultsWithRelation, Filter, Results),
-	    facets(Results, ResultsWithRelation, Filter, Facets),
+	    facets(Results, ResultsWithRelation, Filter, Facets0),
+	    maplist(facet_merge_sameas, Facets0, Facets),
 
 	    length(ResultsWithRelation, NumberOfRelationResults),
 	    length(Results, NumberOfResults),
@@ -462,7 +464,8 @@ filter_results_by_facet(AllResults, Filter, Results) :-
 
 filter_to_goal([], _, true).
 filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
-	pred_filter(Values, P, R, Goal),
+	findall(V, (member(V0, Values), owl_sameas(V0, V)), AllValues),
+	pred_filter(AllValues, P, R, Goal),
 	filter_to_goal(T, R, Rest).
 
 pred_filter([Value], P, R, Goal) :- !,
@@ -528,12 +531,44 @@ facet_property(S, P, V) :-
 	rdf(S, P0, V),
 	root_property(P0, P).
 
-root_property(P0, Super) :-		% FIXME: can be cyclic
+root_property(P0, Super) :-		% FIXME: can be cyclic; cache?
 	findall(P, ( rdf_reachable(P0, rdfs:subPropertyOf, P),
 		     \+ rdf(P, rdfs:subPropertyOf, _)
 		   ),Ps0),
 	sort(Ps0, Ps),
 	member(Super, Ps).
+
+%%	facet_merge_sameas(Facet0, Facet) is det.
+%
+%	Merge different values for  a  facet   that  are  linked through
+%	owl:sameAs.
+%
+%	@param facet(P, Value_Result_Pairs, SelectedValues)
+
+facet_merge_sameas(facet(P, VRPairs0, SelectedValues0),
+		   facet(P, VRPairs,  SelectedValues)) :-
+	pairs_keys(VRPairs0, Values),
+	owl_sameas_map(default, Values, Map),
+	maplist(map_key(Map), VRPairs0, VRPairs1),
+	group_pairs_by_key(VRPairs1, Grouped),
+	maplist(union_results, Grouped, VRPairs),
+	maplist(map_resource(Map), SelectedValues0, SelectedValues).
+
+map_key(Assoc, K0-V, K-V) :-
+	(   get_assoc(K0, Assoc, K)
+	->  true
+	;   K = K0
+	).
+
+union_results(K-RL, K-R) :-
+	append(RL, R0),
+	sort(R0, R).
+
+map_resource(Map, R0, R) :-
+	(   get_assoc(R0, Map, R)
+	->  true
+	;   R = R0
+	).
 
 
 		 /*******************************
