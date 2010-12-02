@@ -430,6 +430,15 @@ related(S, O, P) :-
 	rdf(P, owl:inverseOf, IP),
 	\+ rdf_eq(S, IP, O).
 
+rdf_eq(S, P, O) :-
+	rdf(S, P, O).
+
+:- rdf_meta
+	equivalent_property(r).
+
+equivalent_property(owl:sameAs).
+equivalent_property(skos:exactMatch).
+
 
 %%	filter_results_by_facet(+Rs, +Filter, -Filtered)
 %
@@ -469,62 +478,50 @@ facets(_, _, _, []) :-
 	setting(search:show_facets, false), !.
 facets(FilteredResults, AllResults, Filter, Facets) :-
  	findall(facet(P, Values, []),
-		(   facet_values(P, FilteredResults, Values),
-		    \+ memberchk(prop(P,_), Filter),
-		    \+ facet_exclude_property(P)
-		),
-		Facets0),
+		inactive_facet_values(FilteredResults, Filter, P, Values),
+		InactiveFacets),
 	findall(facet(P, Values, Selected),
-		(   select(prop(P, Selected), Filter, FilterRest),
-		    filter_to_goal(FilterRest, R, Goal),
-		    facet_values(P, AllResults, Goal, R, Values)
-		),
+		active_facet_values(AllResults, Filter, P, Values, Selected),
 		ActiveFacets),
- 	append(ActiveFacets, Facets0, Facets).
+ 	append(ActiveFacets, InactiveFacets, Facets).
 
-facet_values(P, Results, ResultsByValue) :-
+inactive_facet_values(Results, Filter, P, ResultsByValue) :-
 	bagof(V-Rs,
-	      setof(R,
-		    ( member(R, Results),
-		      facet_property(R, P, V)
-  		    ),
-		    Rs
-		   ),
+	      setof(R, inactive_facet_property(Results, Filter, R, P, V), Rs),
 	      ResultsByValue).
 
-facet_values(P, Results, Goal, R, ResultsByValue) :-
+inactive_facet_property(Results, Filter, R, P, V) :-
+	member(R, Results),
+	facet_property(R, P, V),
+	\+ memberchk(prop(P,_), Filter),
+	\+ facet_exclude_property(P).
+
+
+active_facet_values(Results, Filter, P, ResultsByValue, Selected) :-
 	bagof(V-Rs,
-	      setof(R,
-		    ( member(R, Results),
-		      once(Goal),
-		      rdf_has(R, P, V)
-		    ),
-		    Rs
-		   ),
+	      setof(R, active_facet_property(Results, Filter, R, P, V,
+					     Selected),
+		    Rs),
 	      ResultsByValue).
+
+active_facet_property(Results, Filter, R, P, V, Selected) :-
+	select(prop(P, Selected), Filter, FilterRest),
+	filter_to_goal(FilterRest, R, Goal),
+	member(R, Results),
+	once(Goal),
+	rdf_has(R, P, V).
+
 
 facet_property(S, P, V) :-
 	rdf(S, P0, V),
-	super_property(P0, P).
+	root_property(P0, P).
 
-super_property(P0, Super) :-
+root_property(P0, Super) :-		% FIXME: can be cyclic
 	findall(P, ( rdf_reachable(P0, rdfs:subPropertyOf, P),
 		     \+ rdf(P, rdfs:subPropertyOf, _)
 		   ),Ps0),
 	sort(Ps0, Ps),
 	member(Super, Ps).
-
-rdf_eq(S, P, O) :-
-	rdf(S, P, O).
-%rdf_eq(S, P, O) :-
-%	equivalent_property(R),
-%	rdf(S, R, S1),
-%	rdf(S1, P, O).
-
-equivalent_property(P) :-
-	rdf_equal(P, owl:sameAs).
-equivalent_property(P) :-
-	rdf_equal(P, skos:exactMatch).
 
 
 		 /*******************************
