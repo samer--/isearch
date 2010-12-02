@@ -341,6 +341,12 @@ rel_in(rdf(_,P,_), Relations) :-
 %	ResultGraphs is a pair-list Result-SubGraph,  where Graph is the
 %	transitive closure of Result in Graph.   ResultGraphs  is in the
 %	same order as Results.
+%
+%	@tbd	This can be much more efficient: Results and Graph are
+%		ordered by subject, so we can do the first step as an
+%		efficient split.  Then we only need to take care of the
+%		(smaller) number of triples that are not connected to
+%		a result.
 
 result_justifications(Results, Graph, Pairs) :-
 	graph_subject_assoc(Graph, Assoc),
@@ -374,7 +380,7 @@ graph_subject_assoc(Graph, Assoc) :-
 %	Transform Graph into a list of  pairs, where each key represents
 %	a unique resource in Graph and each value is a p-o pairlist.
 %
-%	@param Graph is an ordered set of rdf(S,P,O) triples.
+%	@param Graph is an _ordered_ set of rdf(S,P,O) triples.
 
 rdf_s_po_pairs([], []).
 rdf_s_po_pairs([rdf(S,P,O)|T], [S-[P-O|M]|Graph]) :-
@@ -472,6 +478,15 @@ result_uris(Results, URIs) :-
 %%	facets(+Results, +AllResults, +Filter, -Facets)
 %
 %	Collect faceted properties of Results.
+%
+%	@param	Results is the set of results after applying the facet
+%		filter.
+%	@param	AllResults is the set of results before applying the
+%		facet filter
+%	@param	Filter is the facet filter, which is a list of terms
+%		prop(P, SelectedValues).
+%	@param	Facets is a list of
+%			facet(P, Value_Result_Pairs, SelectedValues)
 
 facets([], _, _, []) :- !.
 facets(_, _, _, []) :-
