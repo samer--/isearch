@@ -29,7 +29,8 @@
 */
 
 :- module(app_isearch,
-	  [ isearch_field//2		% +Query, +Class
+	  [ isearch_field//2,		% +Query, +Class
+	    isearch_page/2		% Options, +Request
 	  ]).
 :- use_module(library(http/http_dispatch)).
 :- use_module(library(http/http_parameters)).
@@ -92,15 +93,26 @@
 :- setting(search:relation_limit, integer, 5,
 	  'Maximum number of relations shown').
 
-:- http_handler(root(isearch), http_interactive_search, [id(isearch)]).
+:- http_handler(root(isearch), isearch_page([]), [id(isearch)]).
 
-%%	http_interactive_search(+Request)
+%%	isearch_page(+Options, +Request)
 %
-%	HTTP handler for search requests.
+%	HTTP handler for the interactive search application.  Options:
+%
+%	    * target_class(+URL)
+%	    Class that defines targets.
+%	    * query_type(+Type)
+%	    One of =literal= or a type for rdf_find_literals/2.
+%	    Default is =case=.
+%	    * header(+Boolean)
+%	    If =false=, omit the header that provides the search-field.
 
-http_interactive_search(Request) :-
-	setting(search:target_class, TargetClass),
+isearch_page(Options, Request) :-
+	setting(search:target_class, DefTargetClass),
 	setting(search:result_limit, DefaultLimit),
+
+	option(target_class(TargetClass), Options, DefTargetClass),
+
 	http_parameters(Request,
 			[ q(Keyword,
 			    [ optional(true),
@@ -133,12 +145,15 @@ http_interactive_search(Request) :-
 			]),
 	(   var(Keyword)
 	->  html_start_page(Class)
-	;   Query = query(Keyword,
-			  Class, Terms, Relations, Filter,
-			  Offset, Limit),
+	;   QueryParams = query(Keyword,
+				Class, Terms, Relations, Filter,
+				Offset, Limit),
+
+	    option(query_type(QueryType), Options, case),
+	    Query =.. [QueryType,Keyword],
 
 					% search
-	    keyword_search_graph(case(Keyword), instance_of_class(Class),
+	    keyword_search_graph(Query, instance_of_class(Class),
 				 AllResults, Graph),
 
 					% limit by related terms
@@ -162,10 +177,10 @@ http_interactive_search(Request) :-
 	    result_relations(ResultsWithTerm, Graph, MatchingRelations),
 	    related_terms(Terms, Class, RelatedTerms),
 
- 	    html_result_page(Query,
+ 	    html_result_page(QueryParams,
 			     result(LimitedResults, NumberOfResults, NumberOfRelationResults),
 			     MatchingTerms, RelatedTerms,
-			     MatchingRelations, Facets)
+			     MatchingRelations, Facets, Options)
   	).
 
 
@@ -188,6 +203,8 @@ http:convert_parameter(json, Atom, Term) :-
 
 %%	keyword_search_graph(+Query, :Filter, -Targets, -Graph) is det.
 %
+%	@param  Query is either a literal(Text), or an expression passed
+%		to rdf_find_literals/2.
 %	@param  Filter is called as call(Filter, Resource) to filter
 %		the results.  The filter =true= performs no filtering.
 %	@param	Targets is an ordered set of resources that match Query
@@ -195,7 +212,10 @@ http:convert_parameter(json, Atom, Term) :-
 %		justification for Targets
 
 keyword_search_graph(Query, Filter, Targets, Graph) :-
-	rdf_find_literals(Query, Literals),
+	(   Query = literal(Text)
+	->  Literals = [Text]
+	;   rdf_find_literals(Query, Literals)
+	),
 	findall(Target-G, keyword_graph(Literals, Filter, Target, G), TGPairs),
 	pairs_keys_values(TGPairs, Targets0, GraphList),
 	sort(Targets0, Targets1),
@@ -596,7 +616,7 @@ html_start_page(Class) :-
 %	a left column with query suggestions, a body with the search
 %	results and a right column with faceted filters.
 
-html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
+html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets, Options) :-
 	QueryObj = query(Keyword,
 			 Class, SelectedTerms, SelectedRelations, Filter,
 			 Offset, Limit),
@@ -608,7 +628,7 @@ html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
 			   \html_requires(js('jquery-1.4.2.min.js')),
 			   \html_requires(js('json2.js')),
 			   div(id(header),
-			       \html_header(Keyword, Class)),
+			       \html_header(Keyword, Class, Options)),
  			   div(id(main),
 			       div(class('main-content'),
 				   [ \html_term_list(Terms, RelatedTerms, SelectedTerms),
@@ -636,7 +656,9 @@ html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets) :-
  				  ])
 			]).
 
-html_header(Keyword, Class) -->
+html_header(_Keyword, _Class, Options) -->
+	{ option(header(false), Options) }, !.
+html_header(Keyword, Class, _Options) -->
 	html(div(class('header-content'),
 		 [ div(id(logo), \logo),
 		   div(id(search),
@@ -680,7 +702,7 @@ html_facet_list_(Facets) -->
 %	Emit a logo
 
 logo -->
-	{ http_location_by_id(http_interactive_search, Home)
+	{ http_location_by_id(isearch, Home)
 	},
 	html(a([class(isearch_logo), href(Home)], '')).
 
@@ -1037,7 +1059,7 @@ toggle_link(ToggleId, BodyId, Label, Shown, Hidden) -->
 		 *******************************/
 
 script_data(Query, Class, Terms, Relations, Filter) -->
-	{ http_location_by_id(http_interactive_search, URL),
+	{ http_location_by_id(isearch, URL),
 	  prolog_to_json(Filter, FilterJSON),
 	  Params = json([url(URL),
 			 q(Query),
