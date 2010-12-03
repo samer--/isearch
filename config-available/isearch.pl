@@ -14,12 +14,12 @@ browsing.
 % Hijack the search-field, redirecting the queries to the interactive
 % search page.
 
-:- http_handler(cpack(isearch_literal),
+:- http_handler(cliopatria(isearch_literal),
 		isearch_page([ header(false),
 			       query_type(literal)
 			     ]),
 		[id(list_triples_with_literal), priority(10)]).
-:- http_handler(cpack(isearch),
+:- http_handler(cliopatria(isearch),
 		isearch_page([ header(false)
 			     ]),
 		[id(search), priority(10)]).
