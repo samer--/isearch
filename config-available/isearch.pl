@@ -1,4 +1,5 @@
 :- module(conf_isearch, []).
+:- use_module(library(http/http_dispatch)).
 :- use_module(isearch(applications/isearch)).
 :- use_module(cliopatria(hooks)).
 
@@ -10,7 +11,19 @@ browsing.
 @author Michiel Hildebrand
 */
 
-cliopatria:menu_item(250=query/isearch,  'Search').
+% Hijack the search-field, redirecting the queries to the interactive
+% search page.
+
+:- http_handler(cpack(isearch_literal),
+		isearch_page([ header(false),
+			       query_type(literal)
+			     ]),
+		[id(list_triples_with_literal), priority(10)]).
+:- http_handler(cpack(isearch),
+		isearch_page([ header(false)
+			     ]),
+		[id(search), priority(10)]).
+
 
 
 
