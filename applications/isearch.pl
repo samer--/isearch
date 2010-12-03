@@ -1059,7 +1059,8 @@ toggle_link(ToggleId, BodyId, Label, Shown, Hidden) -->
 		 *******************************/
 
 script_data(Query, Class, Terms, Relations, Filter) -->
-	{ http_location_by_id(isearch, URL),
+	{ http_current_request(Request),
+	  memberchk(path(URL), Request),
 	  prolog_to_json(Filter, FilterJSON),
 	  Params = json([url(URL),
 			 q(Query),
