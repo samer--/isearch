@@ -505,24 +505,24 @@ pred_filter([Value|Vs], P, R, Goal) :-
 %	@param	Filter is the facet filter, which is a list of terms
 %		prop(P, SelectedValues).
 %	@param	Facets is a list of
-%			facet(P, Value_Result_Pairs, SelectedValues)
+%			facet(P, Value_Results_Pairs, SelectedValues)
 
 facets([], _, _, []) :- !.
 facets(_, _, _, []) :-
 	setting(search:show_facets, false), !.
 facets(FilteredResults, AllResults, Filter, Facets) :-
- 	findall(facet(P, Values, []),
-		inactive_facet_values(FilteredResults, Filter, P, Values),
-		InactiveFacets),
-	findall(facet(P, Values, Selected),
-		active_facet_values(AllResults, Filter, P, Values, Selected),
-		ActiveFacets),
+	inactive_facets(FilteredResults, Filter, InactiveFacets),
+	active_facets(AllResults, Filter, ActiveFacets),
  	append(ActiveFacets, InactiveFacets, Facets).
 
-inactive_facet_values(Results, Filter, P, ResultsByValue) :-
-	bagof(V-Rs,
-	      setof(R, inactive_facet_property(Results, Filter, R, P, V), Rs),
-	      ResultsByValue).
+inactive_facets(Results, Filter, Facets) :-
+	findall(P-(V-R), inactive_facet_property(Results, Filter, R,P,V), Pairs),
+	sort(Pairs, ByP),
+	group_pairs_by_key(ByP, Grouped),
+	maplist(make_facet, Grouped, Facets).
+
+make_facet(P-V_R, facet(P, V_RL, [])) :-
+	group_pairs_by_key(V_R, V_RL).
 
 inactive_facet_property(Results, Filter, R, P, V) :-
 	member(R, Results),
@@ -530,16 +530,19 @@ inactive_facet_property(Results, Filter, R, P, V) :-
 	\+ memberchk(prop(P,_), Filter),
 	\+ facet_exclude_property(P).
 
+active_facets(Results, Filter, Facets) :-
+	findall(P-(V-R),
+		active_facet_property(Results, Filter, R, P, V), Pairs),
+	sort(Pairs, ByP),
+	group_pairs_by_key(ByP, Grouped),
+	maplist(make_active_facet(Filter), Grouped, Facets).
 
-active_facet_values(Results, Filter, P, ResultsByValue, Selected) :-
-	bagof(V-Rs,
-	      setof(R, active_facet_property(Results, Filter, R, P, V,
-					     Selected),
-		    Rs),
-	      ResultsByValue).
+make_active_facet(Filter, P-V_R, facet(P, V_RL, Selected)) :-
+	memberchk(prop(P, Selected), Filter),
+	group_pairs_by_key(V_R, V_RL).
 
-active_facet_property(Results, Filter, R, P, V, Selected) :-
-	select(prop(P, Selected), Filter, FilterRest),
+active_facet_property(Results, Filter, R, P, V) :-
+	select(prop(P, _), Filter, FilterRest),
 	filter_to_goal(FilterRest, R, Goal),
 	member(R, Results),
 	once(Goal),
@@ -550,7 +553,20 @@ facet_property(S, P, V) :-
 	rdf(S, P0, V),
 	root_property(P0, P).
 
-root_property(P0, Super) :-		% FIXME: can be cyclic; cache?
+:- dynamic
+	root_property_cache/3.
+
+root_property(P0, Super) :-
+	rdf_generation(Generation),
+	(   root_property_cache(P0, Super, Generation)
+	*-> true
+	;   retractall(root_property_cache(P0, _, Generation)),
+	    forall(root_property_uncached(P0, Super),
+		   assert(root_property_cache(P0, Super, Generation))),
+	    root_property_cache(P0, Super, Generation)
+	).
+
+root_property_uncached(P0, Super) :-		% FIXME: can be cyclic?
 	findall(P, ( rdf_reachable(P0, rdfs:subPropertyOf, P),
 		     \+ rdf(P, rdfs:subPropertyOf, _)
 		   ),Ps0),
