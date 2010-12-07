@@ -1310,17 +1310,17 @@ facet_exclude_property(P) :-
 		 *	      HOOKS		*
 		 *******************************/
 
-%%	cliopatria:format_search_result(+Resource, +SearchInfo, +In, -Out)
+%%	cliopatria:format_search_result(+Resource)//
 %
-%	Emit HTML for the presentation of Resource as a search
-%	result.
+%	Emit HTML for the presentation of Resource as a search result.
 %
-%       @see This hook is used by format_result//2.
+%       @see This hook is used by format_result//1.
 
 %%	cliopatria:facet_exclude_property(+Property) is semidet.
 %
 %	True if Property must be excluded from creating a facet.
 
-%%	cliopatria:search_pattern(+Literal, Class, S, P, Term, Path)
+%%	cliopatria:search_pattern(+Start, -Result, -Graph) is nondet.
 %
-%	@tbd	Document
+%	True when the resource Result is   a search-result for Start and
+%	Graph is a list of rdf(S,P,O) triples that justify this.
