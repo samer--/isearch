@@ -149,8 +149,7 @@ isearch_page(Options, Request) :-
 				Class, Terms, Relations, Filter,
 				Offset, Limit),
 
-	    option(query_type(QueryType), Options, case),
-	    Query =.. [QueryType,Keyword],
+	    make_query(Keyword, Query, Options),
 
 					% search
 	    keyword_search_graph(Query, instance_of_class(Class),
@@ -200,6 +199,34 @@ isearch_page(Options, Request) :-
 http:convert_parameter(json, Atom, Term) :-
 	atom_json_term(Atom, JSON, []),
 	json_to_prolog(JSON, Term).
+
+%%	make_query(+Keyword, -Query, +Options) is det.
+%
+%	Create a query for rdf_find_literals/2
+
+make_query(Keyword, Query, Options) :-
+	option(query_type(QueryType), Options, case),
+	make_query_type(QueryType, Keyword, Query).
+
+make_query_type(literal, Keyword, literal(Keyword)) :- !.
+make_query_type(QueryType, Keyword, Query) :-
+	tokenize_atom(Keyword, Words),
+	tokens_query(Words, QueryType, Query).
+
+tokens_query([Word], QueryType, Query) :- !,
+	token_query(Word, QueryType, Query).
+tokens_query(['"',Word,'"'|T], QueryType, Query) :- !,
+	(   T == []
+	->  Query = Word
+	;   Query = and(T, Q2),
+	    tokens_query(T, QueryType, Q2)
+	).
+tokens_query([H|T], QueryType, and(Q1,Q2)) :-
+	token_query(H, QueryType, Q1),
+	tokens_query(T, QueryType, Q2).
+
+token_query(Word, QueryType, Query) :-
+	Query =.. [QueryType, Word].
 
 %%	keyword_search_graph(+Query, :Filter, -Targets, -Graph) is det.
 %
@@ -747,7 +774,7 @@ format_result(R) -->
 		 [ div(class(thumbnail),
 		       \result_image(R)),
 		   div(class(text),
-		       [ div(class(title),       \rdf_link(R)),
+		       [ div(class(title),       \rdf_link(R, [max_length(120)])),
 			 div(class(subtitle),    \result_subtitle(R)),
 			 div(class(description), \result_description(R))
 		       ])
