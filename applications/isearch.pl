@@ -108,6 +108,12 @@
 %	    If =false=, omit the header that provides the search-field.
 
 isearch_page(Options, Request) :-
+	(   debugging(profile(isearch))
+	->  profile(isearch_page2(Options, Request))
+	;   isearch_page2(Options, Request)
+	).
+
+isearch_page2(Options, Request) :-
 	setting(search:target_class, DefTargetClass),
 	setting(search:result_limit, DefaultLimit),
 
@@ -971,7 +977,8 @@ html_facets([], _) --> !.
 html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 	{ N1 is N+1,
 	  rdfs_label(P, Label),
-	  pairs_sort_by_result_count(ResultsByValue, Values)
+	  pairs_sort_by_result_count(ResultsByValue, AllValues),
+	  top_bottom(5, 5, AllValues, Values)
   	},
 	html(div(class(facet),
 		 [ div(class(header), Label),
@@ -979,6 +986,19 @@ html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 		       \resource_list(Values, Selected))
 		 ])),
 	html_facets(Fs, N1).
+
+top_bottom(MaxTop, MaxBottom, All, List) :-
+	length(All, Len),
+	(   Len =< MaxTop+MaxBottom
+	->  List = All
+	;   length(Top, MaxTop),
+	    length(Bottom, MaxBottom),
+	    append(Top, Rest, All),
+	    reverse(Rest, RRest),
+	    append(Bottom, _, RRest),
+	    append(Top, Bottom, List)
+	).
+
 
 html_filter_list([]) --> !.
 html_filter_list(Filter) -->
