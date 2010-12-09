@@ -265,18 +265,42 @@ keyword_graph(Literals, Filter, Target, Graph) :-
 	;   call(Filter, Target)
 	).
 
+%%	search_pattern(+Start, -Target, -Graph) is nondet.
+%
+%	True when Target is a result  for   the  Start.  Graph is an RDF
+%	graph represented as a list of rdf(S,P,O) triples that links the
+%	Target to the Start.
+
 search_pattern(Label, Target,
-	       [ rdf(Target, P, literal(Value))
+	       [ rdf(TN, PN, literal(Value))
+	       | More
 	       ]) :-
-	rdf(Target, P, literal(exact(Label), Value)).
+	rdf(TN, PN, literal(exact(Label), Value)),
+	(   rdf_is_bnode(TN),
+	    rdf_has(Target, P, TN)
+	*-> More = [ rdf(Target, P, TN) ]
+	;   TN = Target,
+	    PN = P,
+	    More = []
+	).
 search_pattern(Label, Target,
-	       [ rdf(Target, P, Term),
+	       [ rdf(TN, PN, Term),
 		 rdf(Term, LP, literal(Value))
+	       | More
 	       ]) :-
 	rdf_has(Term, rdfs:label, literal(exact(Label), Value), LP),
-	rdf(Target, P, Term).
+	rdf(TN, PN, Term),
+	(   rdf_is_bnode(TN),
+	    rdf_has(Target, P, TN)
+	*-> More = [ rdf(Target, P, TN) ]
+	;   TN = Target,
+	    PN = P,
+	    More = []
+	).
 search_pattern(Label, Target, Graph) :-
 	cliopatria:search_pattern(Label, Target, Graph).
+
+
 
 
 %%	graph_terms(+Graph, -TermSet) is det.
@@ -973,10 +997,7 @@ html_filter([prop(P, Vs)|Ps]) -->
 
 property_values([]) --> !.
 property_values([V|Vs]) -->
-	{ (   V = literal(_)
-	  ->  literal_text(V, Label)
-	  ;   rdfs_label(V, Label)
-	  ),
+	{ rdf_display_label(V, Label),
 	  resource_attr(V, Attr),
 	  http_absolute_location(icons('checkbox_selected.png'), Img, [])
 	},
