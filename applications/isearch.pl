@@ -45,21 +45,20 @@
 :- use_module(library(semweb/rdfs)).
 :- use_module(library(semweb/rdf_litindex)).
 :- use_module(library(semweb/rdf_label)).
+:- use_module(library(semweb/rdf_description)).
 :- use_module(library(semweb/rdf_abstract)).
-:- use_module(library(semweb/owl_sameas)).
 :- use_module(library(settings)).
 :- use_module(library(apply)).
 
+:- use_module(library(search/facet)).
 :- use_module(components(label)).
 
 :- multifile
-	cliopatria:facet_exclude_property/1,		% ?Resource
 	cliopatria:format_search_result/4,
 	cliopatria:search_pattern/3.		% +Start, -Result, -Graph
 
 :- rdf_meta
 	isearch_field(+,r,?,?),
-	facet_exclude_property(r),
        	cliopatria:facet_exclude_property(r).
 
 % declare application settings
@@ -536,139 +535,8 @@ equivalent_property(skos:exactMatch).
 
 filter_results_by_facet(AllResults, [], AllResults) :- !.
 filter_results_by_facet(AllResults, Filter, Results) :-
-	filter_to_goal(Filter, R, Goal),
+	facet_condition(Filter, R, Goal),
 	findall(R, (member(R, AllResults), Goal), Results).
-
-filter_to_goal([], _, true).
-filter_to_goal([prop(P, Values)|T], R, (Goal,Rest)) :-
-	findall(V, (member(V0, Values), owl_sameas(V0, V)), AllValues),
-	pred_filter(AllValues, P, R, Goal),
-	filter_to_goal(T, R, Rest).
-
-pred_filter([Value], P, R, Goal) :- !,
-	Goal = rdf_has(R, P, Value).
-pred_filter([Value|Vs], P, R, Goal) :-
-	Goal =  (rdf_has(R, P, Value); Rest),
-	pred_filter(Vs, P, R, Rest).
-
-
-%%	facets(+Results, +AllResults, +Filter, -Facets)
-%
-%	Collect faceted properties of Results.
-%
-%	@param	Results is the set of results after applying the facet
-%		filter.
-%	@param	AllResults is the set of results before applying the
-%		facet filter
-%	@param	Filter is the facet filter, which is a list of terms
-%		prop(P, SelectedValues).
-%	@param	Facets is a list of
-%			facet(P, Value_Results_Pairs, SelectedValues)
-
-facets([], _, _, []) :- !.
-facets(_, _, _, []) :-
-	setting(search:show_facets, false), !.
-facets(FilteredResults, AllResults, Filter, Facets) :-
-	inactive_facets(FilteredResults, Filter, InactiveFacets),
-	active_facets(AllResults, Filter, ActiveFacets),
- 	append(ActiveFacets, InactiveFacets, Facets).
-
-inactive_facets(Results, Filter, Facets) :-
-	findall(P-(V-R), inactive_facet_property(Results, Filter, R,P,V), Pairs),
-	sort(Pairs, ByP),
-	group_pairs_by_key(ByP, Grouped),
-	maplist(make_facet, Grouped, Facets).
-
-make_facet(P-V_R, facet(P, V_RL, [])) :-
-	group_pairs_by_key(V_R, V_RL).
-
-inactive_facet_property(Results, Filter, R, P, V) :-
-	member(R, Results),
-	facet_property(R, P, V),
-	\+ memberchk(prop(P,_), Filter),
-	\+ facet_exclude_property(P).
-
-active_facets(Results, Filter, Facets) :-
-	findall(P-(V-R),
-		active_facet_property(Results, Filter, R, P, V), Pairs),
-	sort(Pairs, ByP),
-	group_pairs_by_key(ByP, Grouped),
-	maplist(make_active_facet(Filter), Grouped, Facets).
-
-make_active_facet(Filter, P-V_R, facet(P, V_RL, Selected)) :-
-	memberchk(prop(P, Selected), Filter),
-	group_pairs_by_key(V_R, V_RL).
-
-active_facet_property(Results, Filter, R, P, V) :-
-	select(prop(P, _), Filter, FilterRest),
-	filter_to_goal(FilterRest, R, Goal),
-	member(R, Results),
-	once(Goal),
-	rdf_has(R, P, V).
-
-
-facet_property(S, P, V) :-
-	rdf(S, P0, V0),
-	real_value(V0, V),
-	root_property(P0, P).
-
-real_value(V0, V) :-
-	rdf_is_bnode(V0),
-	rdf_has(V0, rdf:value, V), !.
-real_value(V, V).
-
-:- dynamic
-	root_property_cache/3.
-
-root_property(P0, Super) :-
-	rdf_generation(Generation),
-	(   root_property_cache(P0, Super, Generation)
-	*-> true
-	;   retractall(root_property_cache(P0, _, Generation)),
-	    forall(root_property_uncached(P0, Super),
-		   assert(root_property_cache(P0, Super, Generation))),
-	    root_property_cache(P0, Super, Generation)
-	).
-
-root_property_uncached(P0, Super) :-		% FIXME: can be cyclic?
-	findall(P, ( rdf_reachable(P0, rdfs:subPropertyOf, P),
-		     \+ rdf(P, rdfs:subPropertyOf, _)
-		   ),Ps0),
-	sort(Ps0, Ps),
-	member(Super, Ps).
-
-%%	facet_merge_sameas(Facet0, Facet) is det.
-%
-%	Merge different values for  a  facet   that  are  linked through
-%	owl:sameAs.
-%
-%	@param facet(P, Value_Result_Pairs, SelectedValues)
-
-facet_merge_sameas(facet(P, VRPairs0, SelectedValues0),
-		   facet(P, VRPairs,  SelectedValues)) :-
-	pairs_keys(VRPairs0, Values),
-	owl_sameas_map(default, Values, Map),
-	maplist(map_key(Map), VRPairs0, VRPairs1),
-	sort(VRPairs1, VRPairs2),
-	group_pairs_by_key(VRPairs2, Grouped),
-	maplist(union_results, Grouped, VRPairs),
-	maplist(map_resource(Map), SelectedValues0, SelectedValues).
-
-map_key(Assoc, K0-V, K-V) :-
-	(   get_assoc(K0, Assoc, K)
-	->  true
-	;   K = K0
-	).
-
-union_results(K-RL, K-R) :-
-	append(RL, R0),
-	sort(R0, R).
-
-map_resource(Map, R0, R) :-
-	(   get_assoc(R0, Map, R)
-	->  true
-	;   R = R0
-	).
 
 
 		 /*******************************
@@ -821,8 +689,7 @@ result_subtitle(R) -->
 	result_creator(R),
 	result_date(R).
 result_description(R) -->
-	{ description_property(P),
-	  rdf_has(R, P, LitDesc),
+	{ rdf_description(R, LitDesc),
 	  literal_text(LitDesc, DescTxt),
 	  truncate_atom(DescTxt, 200, Desc)
 	},
@@ -1358,36 +1225,14 @@ instance_of_class(Class, S) :-
 		 *******************************/
 
 :- multifile
-	title_property/1,
-	description_property/1,
 	image_property/1,
 	image_suffix/1.
 
 :- rdf_meta
-	description_property(r),
 	image_property(r).
-
-description_property(dc:description).
-description_property(skos:scopeNote).
-description_property(rdfs:comment).
 
 image_property('http://www.vraweb.org/vracore/vracore3#relation.depicts').
 image_suffix('&resize100square').
-
-
-		 /*******************************
-		 *	      FACETS		*
-		 *******************************/
-
-%facet_exclude_property(rdf:type).
-facet_exclude_property(P) :-
-	label_property(P).
-facet_exclude_property(P) :-
-	description_property(P).
-facet_exclude_property(dc:identifier).
-facet_exclude_property(owl:sameAs).
-facet_exclude_property(P) :-
-	cliopatria:facet_exclude_property(P).
 
 
 		 /*******************************
@@ -1399,10 +1244,6 @@ facet_exclude_property(P) :-
 %	Emit HTML for the presentation of Resource as a search result.
 %
 %       @see This hook is used by format_result//1.
-
-%%	cliopatria:facet_exclude_property(+Property) is semidet.
-%
-%	True if Property must be excluded from creating a facet.
 
 %%	cliopatria:search_pattern(+Start, -Result, -Graph) is nondet.
 %
