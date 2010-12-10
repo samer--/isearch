@@ -169,8 +169,7 @@ isearch_page2(Options, Request) :-
 
 					% limit by facet-value
 	    filter_results_by_facet(ResultsWithRelation, Filter, Results),
-	    facets(Results, ResultsWithRelation, Filter, Facets0),
-	    maplist(facet_merge_sameas, Facets0, Facets),
+	    compute_facets(Results, ResultsWithRelation, Filter, Facets),
 
 	    length(ResultsWithRelation, NumberOfRelationResults),
 	    length(Results, NumberOfResults),
@@ -186,6 +185,34 @@ isearch_page2(Options, Request) :-
 			     MatchingTerms, RelatedTerms,
 			     MatchingRelations, Facets, Options)
   	).
+
+compute_facets(Results, AllResults, Filter, Facets) :-
+	facets(Results, AllResults, Filter, Facets0),
+	maplist(facet_merge_sameas, Facets0, Facets1),
+	length(AllResults, Total),
+	map_list_to_pairs(facet_quality(Total), Facets1, Keyed),
+	keysort(Keyed, Sorted),
+	pairs_values(Sorted, Facets).
+
+%%	facet_quality(+Total, +Facet, -Quality)
+%
+%	Rate the facet. We use 1/Q  to   avoid  the  need to reverse the
+%	search results.
+
+facet_quality(Total, Facet, Quality) :-
+	facet_balance(Facet, Balance),
+	facet_object_cardinality(Facet, Card),
+	facet_frequency(Facet, Total, Freq),
+	facet_weight(Facet, Weight),
+	Quality0 is Balance*Card*Freq*Weight,
+	(   debugging(facet)
+	->  Facet = facet(P, _, _),
+	    rdf_display_label(P, Label),
+	    debug(facet, '~p: ~w = ~w*~w*~w*~w~n',
+		  [Label, Quality0, Balance, Card, Freq, Weight])
+	;   true
+	),
+	Quality is 1/(Quality0 + 0.00000000000001).
 
 
 % conversion of json parameters.

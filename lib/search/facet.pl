@@ -31,14 +31,20 @@
 :- module(search_facet,
 	  [ facets/4,			% +Results, +AllResults, +Filter, -Facets
 	    facet_merge_sameas/2,	% +FacetIn, -FacetOut
-	    facet_condition/3		% +Facets, ?Resource, -Goal
+	    facet_condition/3,		% +Facets, ?Resource, -Goal
+	    facet_balance/2,		% +Facet, -Balance
+	    facet_object_cardinality/2,	% +Facet, -Card
+	    facet_frequency/3,		% +Facet, +TotalCount, -Freq
+	    facet_weight/2		% +Facet, -Weight
 	  ]).
 :- use_module(library(assoc)).
 :- use_module(library(lists)).
 :- use_module(library(pairs)).
+:- use_module(library(apply)).
 :- use_module(library(semweb/owl_sameas)).
 :- use_module(library(semweb/rdf_label)).
 :- use_module(library(semweb/rdf_description)).
+:- use_module(library(stat_lists)).
 
 /** <module> Computations for facetted search
 
@@ -50,7 +56,7 @@ various operations on facets.  A facet is represented as
 */
 
 :- multifile
-	cliopatria:facet_exclude_property/1.	% ?Resource
+	cliopatria:facet_weight/2.	% ?Resource, ?Weight
 
 
 %%	facets(+Results, +AllResults, +Filter, -Facets)
@@ -191,27 +197,84 @@ pred_filter([Value|Vs], P, R, Goal) :-
 	pred_filter(Vs, P, R, Rest).
 
 
-:- rdf_meta
-	facet_exclude_property(r).
+		 /*******************************
+		 *	      RANKING		*
+		 *******************************/
 
-%facet_exclude_property(rdf:type).
-facet_exclude_property(P) :-
+%%	facet_balance(+Facet, -Balance) is det.
+%%	facet_object_cardinality(+Facet, -Card) is det.
+%%	facet_frequency(+Facet, +TotalResultCount, -Freq).
+%
+%	Balance is a number 0..1 that   expresses how wel the result-set
+%	is distributed over the different values for the facet property.
+%
+%	Object cardinality prefers facets with   a  reasonable number of
+%	alternatives. Note that the reference   below does *not* mention
+%	good values for the constants Mu and Sigma.
+%
+%	Facet Frequency says something about the total number of results
+%	covered by the facet relative to the total (search) result.
+%
+%	@see	Eyal Oren, Renaud Delbru, Stefan Decker: Extending
+%		Faceted Navigation for RDF Data. International Semantic
+%		Web Conference 2006: 559-572
+
+facet_balance(facet(_P, V_R, _Selected), Balance) :-
+	pairs_values(V_R, RLs),
+	maplist(length, RLs, Counts),
+	list_variance(Counts, Var),
+	Balance is 1 - (Var/(1+Var)).
+
+facet_object_cardinality(facet(_P, V_R, _Selected), Card) :-
+	Mu = 10,
+	Sigma = 40,
+	length(V_R, NoP),
+	(   NoP =< 1
+	->  Card = 0
+	;   Card is exp(-(((NoP-Mu)**2)/(2*Sigma**2)))
+	).
+
+facet_frequency(facet(_P, V_R, _Selected), Total, Freq) :-
+	pairs_values(V_R, RLs),
+	append(RLs, AllResults),
+	sort(AllResults, Unique),
+	length(Unique, UniqueCount),
+	Freq is UniqueCount/Total.
+
+%%	facet_weight(?P, ?Weight)
+%
+%	User contributed value that assesses the usefullness of a facet.
+
+:- rdf_meta
+	facet_weight(r, -).
+
+facet_weight(P, 0) :-
 	label_property(P).
-facet_exclude_property(P) :-
+facet_weight(P, 0) :-
 	description_property(P).
-facet_exclude_property(dc:identifier).
-facet_exclude_property(skos:notation).
-facet_exclude_property(owl:sameAs).
-facet_exclude_property(rdf:value).
+facet_weight(dc:identifier, 0).
+facet_weight(skos:notation, 0).
+facet_weight(owl:sameAs, 0).
+facet_weight(rdf:value, 0).
+facet_weight(P, Weight) :-
+	(   cliopatria:facet_weight(P, Weight0)
+	->  Weight = Weight0
+	;   Weight = 0.5
+	).
+
 facet_exclude_property(P) :-
-	cliopatria:facet_exclude_property(P).
+	facet_weight(P, W),
+	W =:= 0.
 
 
 		 /*******************************
 		 *	       HOOKS		*
 		 *******************************/
 
-%%	cliopatria:facet_exclude_property(+Property) is semidet.
+%%	cliopatria:facet_weight(+Property, -Weight) is semidet.
 %
-%	True if Property must be excluded from creating a facet.
+%	Expresses the usefullness of Property as a facet value.
+%
+%	@param Weight is a float between 0 and 1.  0 excludes the
+%	       facet, while 1 makes the facet `ideal'.
 
