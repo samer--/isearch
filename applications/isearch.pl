@@ -608,8 +608,14 @@ active_facet_property(Results, Filter, R, P, V) :-
 
 
 facet_property(S, P, V) :-
-	rdf(S, P0, V),
+	rdf(S, P0, V0),
+	real_value(V0, V),
 	root_property(P0, P).
+
+real_value(V0, V) :-
+	rdf_is_bnode(V0),
+	rdf_has(V0, rdf:value, V), !.
+real_value(V, V).
 
 :- dynamic
 	root_property_cache/3.
