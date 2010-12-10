@@ -195,7 +195,7 @@ isearch_page2(Options, Request) :-
 	prop(prop:atom, values:_),
 	literal(literal:atom),
 	literal(literal:_),
-	type(type:atom, text:atom),
+	type(type:atom, text:_),
 	lang(lang:atom, text:atom).
 
 %%	http:convert_parameter(+Type, +Text, -Value) is semidet.
@@ -321,7 +321,8 @@ graph_terms(Graph, TermSet) :-
 graph_terms_([], []).
 graph_terms_([rdf(S,P,L)|T], Terms) :-
 	(   rdf_is_literal(L),
-	    rdfs_subproperty_of(P, rdfs:label)
+	    rdfs_subproperty_of(P, rdfs:label),
+	    \+ rdf_is_bnode(S)
 	->  Terms = [S|More],
 	    graph_terms_(T, More)
 	;   graph_terms_(T, Terms)
