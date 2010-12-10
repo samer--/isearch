@@ -992,13 +992,22 @@ top_bottom(MaxTop, MaxBottom, All, List) :-
 	length(All, Len),
 	(   Len =< MaxTop+MaxBottom
 	->  List = All
-	;   length(Top, MaxTop),
-	    length(Bottom, MaxBottom),
-	    append(Top, Rest, All),
-	    reverse(Rest, RRest),
-	    append(Bottom, _, RRest),
-	    append(Top, Bottom, List)
+	;   Skipped is Len-(MaxTop+MaxBottom),
+	    top(MaxTop, All, Rest0, List, List1),
+	    List1 = [Count-'__skipped'|List2],
+	    skip(Skipped, 0, Count, Rest0, List2)
 	).
+
+top(0, All, All, List, List) :- !.
+top(N, [H|T0], All, [H|T], List) :-
+	succ(N1, N),
+	top(N1, T0, All, T, List).
+
+skip(0, Count, Count, List, List).
+skip(N, C0, C, [C1-_|T], List) :-
+	C2 is C0+C1,
+	N2 is N-1,
+	skip(N2, C2, C, T, List).
 
 
 html_filter_list([]) --> !.
@@ -1072,27 +1081,28 @@ resource_list(Rs, Selected) -->
 resource_items([], _) --> !.
 resource_items([V|T], Selected) -->
 	{ resource_term_count(V, R, Count),
-	  rdf_display_label(R, Label)
+	  (   R == '__skipped'
+	  ->  Label = '<skipped>'
+	  ;   rdf_display_label(R, Label)
+	  )
 	},
 	resource_item(R, Label, Count, Selected),
  	resource_items(T, Selected).
 
 resource_term_count(Count-R, R, Count) :- !.
-resource_term_count(R, R, '') :- atom(R).
+resource_term_count(R, R, '').
 
 resource_item(R, Label, Count, Selected) -->
 	{ Selected = [],
 	  resource_attr(R, A)
-	},
-	!,
+	}, !,
 	html(li(title(A),
 		\resource_item_content(Label, Count)
 	       )).
 resource_item(R, Label, Count, Selected) -->
- 	 { memberchk(R, Selected),
-	   resource_attr(R, A),
-	   !,
- 	   http_absolute_location(icons('checkbox_selected.png'), Img, [])
+	{ memberchk(R, Selected),
+	  resource_attr(R, A), !,
+	  http_absolute_location(icons('checkbox_selected.png'), Img, [])
 	},
 	html(li([title(A), class(selected)],
 		\resource_item_content(Label, Count, Img)
@@ -1102,8 +1112,7 @@ resource_item(R, Label, Count, _Selected) -->
 	  resource_attr(R, A)
 	},
 	html(li(title(A),
-		  \resource_item_content(Label, Count, Img)
-	       )).
+		\resource_item_content(Label, Count, Img))).
 
 resource_attr(R, R) :- atom(R), !.
 resource_attr(Lit, S) :-
