@@ -87,6 +87,12 @@ inactive_facets(Results, Filter, Facets) :-
 	group_pairs_by_key(ByP, Grouped),
 	maplist(make_facet(Results), Grouped, Facets).
 
+% Alternative for the findall below:
+%	pairs_values(V_RL0, RLL),
+%	append(RLL, RL),
+%	sort(RL, Unique),
+%	ord_subtract(Results, Unique, NoP),
+
 make_facet(Results, P-V_R, facet(P, V_RL, [])) :-
 	group_pairs_by_key(V_R, V_RL0),
 	(   findall(R, (member(R,Results),\+rdf_has(R,P,_)), NoP),
