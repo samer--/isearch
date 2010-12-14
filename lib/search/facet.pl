@@ -85,10 +85,15 @@ inactive_facets(Results, Filter, Facets) :-
 	findall(P-(V-R), inactive_facet_property(Results, Filter, R,P,V), Pairs),
 	sort(Pairs, ByP),
 	group_pairs_by_key(ByP, Grouped),
-	maplist(make_facet, Grouped, Facets).
+	maplist(make_facet(Results), Grouped, Facets).
 
-make_facet(P-V_R, facet(P, V_RL, [])) :-
-	group_pairs_by_key(V_R, V_RL).
+make_facet(Results, P-V_R, facet(P, V_RL, [])) :-
+	group_pairs_by_key(V_R, V_RL0),
+	(   findall(R, (member(R,Results),\+rdf_has(R,P,_)), NoP),
+	    NoP \== []
+	->  V_RL = ['__null'-NoP|V_RL0]
+	;   V_RL = V_RL0
+	).
 
 inactive_facet_property(Results, Filter, R, P, V) :-
 	member(R, Results),
@@ -101,11 +106,16 @@ active_facets(Results, Filter, Facets) :-
 		active_facet_property(Results, Filter, R, P, V), Pairs),
 	sort(Pairs, ByP),
 	group_pairs_by_key(ByP, Grouped),
-	maplist(make_active_facet(Filter), Grouped, Facets).
+	maplist(make_active_facet(Results, Filter), Grouped, Facets).
 
-make_active_facet(Filter, P-V_R, facet(P, V_RL, Selected)) :-
+make_active_facet(Results, Filter, P-V_R, facet(P, V_RL, Selected)) :-
 	memberchk(prop(P, Selected), Filter),
-	group_pairs_by_key(V_R, V_RL).
+	group_pairs_by_key(V_R, V_RL0),
+	(   findall(R, (member(R,Results),\+rdf_has(R,P,_)), NoP),
+	    NoP \== []
+	->  V_RL = ['__null'-NoP|V_RL0]
+	;   V_RL = V_RL0
+	).
 
 active_facet_property(Results, Filter, R, P, V) :-
 	select(prop(P, _), Filter, FilterRest),
@@ -187,8 +197,11 @@ map_resource(Map, R0, R) :-
 
 facet_condition([], _, true).
 facet_condition([prop(P, Values)|T], R, (Goal->Rest)) :-
-	findall(V, (member(V0, Values), owl_sameas(V0, V)), AllValues),
-	pred_filter(AllValues, P, R, Goal),
+	(   Values == ['__null']
+	->  Goal = (\+ rdf(R,P,_))
+	;   findall(V, (member(V0, Values), owl_sameas(V0, V)), AllValues),
+	    pred_filter(AllValues, P, R, Goal)
+	),
 	facet_condition(T, R, Rest).
 
 pred_filter([Value], P, R, Goal) :- !,
