@@ -602,8 +602,7 @@ html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets, Op
 			[  \html_requires(css('interactive_search.css')),
 			   \html_requires(js('jquery-1.4.2.min.js')),
 			   \html_requires(js('json2.js')),
-			   div(id(header),
-			       \html_header(Keyword, Class, Options)),
+			   \html_header(Keyword, Class, Options),
  			   div(id(main),
 			       div(class('main-content'),
 				   [ \html_term_list(Terms, RelatedTerms, SelectedTerms),
@@ -634,11 +633,12 @@ html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets, Op
 html_header(_Keyword, _Class, Options) -->
 	{ option(header(false), Options) }, !.
 html_header(Keyword, Class, _Options) -->
-	html(div(class('header-content'),
-		 [ div(id(logo), \logo),
-		   div(id(search),
-		       \isearch_field(Keyword, Class))
-		 ])).
+	html(div(id(header),
+		 div(class('header-content'),
+		     [ div(id(logo), \logo),
+		       div(id(search),
+			   \isearch_field(Keyword, Class))
+		     ]))).
 
 html_term_list([], [], _) --> !,
 	html(div([id(left), class(column)],
