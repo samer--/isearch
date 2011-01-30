@@ -54,7 +54,7 @@
 :- use_module(components(label)).
 
 :- multifile
-	cliopatria:format_search_result/4,
+	cliopatria:format_search_result/3,
 	cliopatria:search_pattern/3.		% +Start, -Result, -Graph
 
 :- rdf_meta
@@ -701,6 +701,8 @@ html_result_list([R|Rs]) -->
 	html_result_list(Rs).
 
 format_result(R) -->
+	cliopatria:format_search_result(R).
+format_result(R) -->
 	html(div(class('result-item'),
 		 [ div(class(thumbnail),
 		       \result_image(R)),
@@ -710,6 +712,7 @@ format_result(R) -->
 			 div(class(description), \result_description(R))
 		       ])
 		 ])).
+
 
 result_subtitle(R) -->
 	result_creator(R),
