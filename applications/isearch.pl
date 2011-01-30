@@ -313,10 +313,12 @@ search_pattern(Label, Target,
 	       | More
 	       ]) :-
 	rdf(TN, PN, literal(exact(Label), Value)),
-	(   rdf_is_bnode(TN),
+	(   (rdf_is_bnode(TN)
+	    ;rdf_equal(rdf:value, PN)
+	    ),
 	    rdf_has(Target, P, TN)
 	*-> More = [ rdf(Target, P, TN) ]
-	;   TN = Target,
+ 	;   TN = Target,
 	    PN = P,
 	    More = []
 	).
