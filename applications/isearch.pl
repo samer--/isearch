@@ -81,8 +81,6 @@
 	   'Show relations by which search results are found').
 :- setting(search:show_facets, boolean, true,
 	   'Show faceted filters in the search result page').
-:- setting(search:show_single_value_facet, boolean, false,
-	   'Show facets with a single value').
 
 % limits
 :- setting(search:result_limit, integer, 10,
@@ -187,16 +185,23 @@ isearch_page2(Options, Request) :-
   	).
 
 compute_facets(Results, AllResults, Filter, Facets) :-
-	facets(Results, AllResults, Filter, Facets0),
-	maplist(facet_merge_sameas, Facets0, Facets1),
+	facets(Results, AllResults, Filter, ActiveFacets0, InactiveFacets0),
+	maplist(cleanup_facet, ActiveFacets0, ActiveFacets1),
+	maplist(cleanup_facet, InactiveFacets0, InactiveFacets1),
 	length(AllResults, Total),
-	map_list_to_pairs(facet_quality(Total), Facets1, Keyed),
+	map_list_to_pairs(facet_quality(Total), InactiveFacets1, Keyed),
 	keysort(Keyed, Sorted),
-	pairs_values(Sorted, Facets).
+	pairs_values(Sorted, InactiveFacets),
+	append(ActiveFacets1, InactiveFacets, Facets).
+
+cleanup_facet(Facet0, Facet) :-
+	facet_merge_sameas(Facet0, Facet1),
+	facet_join_single(Facet1, Facet).
+
 
 %%	facet_quality(+Total, +Facet, -Quality)
 %
-%	Rate the facet. We use 1/Q  to   avoid  the  need to reverse the
+%	Rate the facet. We use 1-Q to avoid the need to reverse the
 %	search results.
 
 facet_quality(Total, Facet, Quality) :-
@@ -212,7 +217,7 @@ facet_quality(Total, Facet, Quality) :-
 		  [Label, Quality0, Balance, Card, Freq, Weight])
 	;   true
 	),
-	Quality is 1/(Quality0 + 0.00000000000001).
+	Quality is 1-Quality0.
 
 
 % conversion of json parameters.
@@ -562,7 +567,7 @@ equivalent_property(skos:exactMatch).
 
 filter_results_by_facet(AllResults, [], AllResults) :- !.
 filter_results_by_facet(AllResults, Filter, Results) :-
-	facet_condition(Filter, R, Goal),
+	facet_condition(Filter, AllResults, R, Goal),
 	findall(R, (member(R, AllResults), Goal), Results).
 
 
@@ -653,16 +658,8 @@ html_term_list(Terms, RelatedTerms, SelectedTerms) -->
 		       ])
 		 ])).
 
+html_facet_list([]) --> !.
 html_facet_list(Facets) -->
-	{ (   setting(search:show_single_value_facet, false)
-	  ->  remove_single_value_facet(Facets, Facets1)
-	  ;   Facets1 = Facets
-	  )
-	},
-	html_facet_list_(Facets1).
-
-html_facet_list_([]) --> !.
-html_facet_list_(Facets) -->
 	html(div([id(right), class(column)],
 		 [ div(class(toggle),
 		       \toggle_link(rtoggle, rbody, '<', '<', '>')),
@@ -877,12 +874,11 @@ html_related_terms([P-Terms|T], N) -->
 html_facets([], _) --> !.
 html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 	{ N1 is N+1,
-	  rdfs_label(P, Label),
 	  pairs_sort_by_result_count(ResultsByValue, AllValues),
 	  top_bottom(5, 5, AllValues, Values)
   	},
 	html(div(class(facet),
-		 [ div(class(header), Label),
+		 [ div(class(header), \rdf_link(P)),
 		   div([title(P), class(items)],
 		       \resource_list(Values, Selected))
 		 ])),
@@ -1211,7 +1207,10 @@ pairs_sort_by_result_count(Grouped, Sorted) :-
 
 pairs_result_count([], []).
 pairs_result_count([Key-Results|T], [Count-Key|Rest]) :-
-	length(Results, Count),
+	(   integer(Results)
+	->  Count = Results
+	;   length(Results, Count)
+	),
 	pairs_result_count(T, Rest).
 
 

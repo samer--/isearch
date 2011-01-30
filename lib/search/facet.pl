@@ -29,9 +29,10 @@
 */
 
 :- module(search_facet,
-	  [ facets/4,			% +Results, +AllResults, +Filter, -Facets
+	  [ facets/5,			% +Res, +AllRes, +Filter, -AFacs, -IFacs
 	    facet_merge_sameas/2,	% +FacetIn, -FacetOut
-	    facet_condition/3,		% +Facets, ?Resource, -Goal
+	    facet_join_single/2,	% +FacetIn, -FacetOut
+	    facet_condition/4,		% +Facets, +ResultSet, ?Resource, -Goal
 	    facet_balance/2,		% +Facet, -Balance
 	    facet_object_cardinality/2,	% +Facet, -Card
 	    facet_frequency/3,		% +Facet, +TotalCount, -Freq
@@ -60,7 +61,8 @@ various operations on facets.  A facet is represented as
 	cliopatria:facet_weight/2.	% ?Resource, ?Weight
 
 
-%%	facets(+Results, +AllResults, +Filter, -Facets)
+%%	facets(+Results, +AllResults, +Filter,
+%%	       -ActiveFacets, -InactiveFacets) is det.
 %
 %	Collect faceted properties of Results.
 %
@@ -73,22 +75,32 @@ various operations on facets.  A facet is represented as
 %	@param	Facets is a list of
 %			facet(P, Value_Results_Pairs, SelectedValues)
 
-facets([], _, _, []) :- !.
-facets(_, _, _, []) :-
+facets([], _, _, [], []) :- !.
+facets(_, _, _, [], []) :-
 	setting(search:show_facets, false), !.
-facets(FilteredResults, AllResults, Filter, Facets) :-
+facets(FilteredResults, AllResults, Filter, ActiveFacets, InactiveFacets) :-
 	inactive_facets(FilteredResults, Filter, InactiveFacets),
-	active_facets(AllResults, Filter, ActiveFacets),
- 	append(ActiveFacets, InactiveFacets, Facets).
+	active_facets(AllResults, Filter, ActiveFacets).
 
 inactive_facets(Results, Filter, Facets) :-
 	findall(P-(V-R), inactive_facet_property(Results, Filter, R,P,V), Pairs),
 	sort(Pairs, ByP),
 	group_pairs_by_key(ByP, Grouped),
-	maplist(make_facet, Grouped, Facets).
+	maplist(make_facet(Results), Grouped, Facets).
 
-make_facet(P-V_R, facet(P, V_RL, [])) :-
-	group_pairs_by_key(V_R, V_RL).
+% Alternative for the findall below:
+%	pairs_values(V_RL0, RLL),
+%	append(RLL, RL),
+%	sort(RL, Unique),
+%	ord_subtract(Results, Unique, NoP),
+
+make_facet(Results, P-V_R, facet(P, V_RL, [])) :-
+	group_pairs_by_key(V_R, V_RL0),
+	(   findall(R, (member(R,Results),\+rdf_has(R,P,_)), NoP),
+	    NoP \== []
+	->  V_RL = ['__null'-NoP|V_RL0]
+	;   V_RL = V_RL0
+	).
 
 inactive_facet_property(Results, Filter, R, P, V) :-
 	member(R, Results),
@@ -101,15 +113,20 @@ active_facets(Results, Filter, Facets) :-
 		active_facet_property(Results, Filter, R, P, V), Pairs),
 	sort(Pairs, ByP),
 	group_pairs_by_key(ByP, Grouped),
-	maplist(make_active_facet(Filter), Grouped, Facets).
+	maplist(make_active_facet(Results, Filter), Grouped, Facets).
 
-make_active_facet(Filter, P-V_R, facet(P, V_RL, Selected)) :-
+make_active_facet(Results, Filter, P-V_R, facet(P, V_RL, Selected)) :-
 	memberchk(prop(P, Selected), Filter),
-	group_pairs_by_key(V_R, V_RL).
+	group_pairs_by_key(V_R, V_RL0),
+	(   findall(R, (member(R,Results),\+rdf_has(R,P,_)), NoP),
+	    NoP \== []
+	->  V_RL = ['__null'-NoP|V_RL0]
+	;   V_RL = V_RL0
+	).
 
 active_facet_property(Results, Filter, R, P, V) :-
 	select(prop(P, _), Filter, FilterRest),
-	facet_condition(FilterRest, R, Goal),
+	facet_condition(FilterRest, Results, R, Goal),
 	member(R, Results),
 	call(Goal),
 	rdf_has(R, P, V).
@@ -145,6 +162,22 @@ root_property_uncached(P0, Super) :-		% FIXME: can be cyclic?
 	sort(Ps0, Ps),
 	member(Super, Ps).
 
+%%	facet_join_single(Facet0, Facet) is det.
+%
+%	Join all facet values that  represent   only  one  result into a
+%	virtual facet __single
+
+facet_join_single(facet(P, VRPairs0, SelectedValues),
+		  facet(P, VRPairs,  SelectedValues)) :-
+	partition(single, VRPairs0, Singles, VRPairs1),
+	length(Singles, Count),
+	(   Count == 0
+	->  VRPairs = VRPairs1
+	;   VRPairs = ['__single'-Count|VRPairs1]
+	).
+
+single(_-[_]).				% facet pointing to exactly one result
+
 %%	facet_merge_sameas(Facet0, Facet) is det.
 %
 %	Merge different values for  a  facet   that  are  linked through
@@ -178,18 +211,28 @@ map_resource(Map, R0, R) :-
 	;   R = R0
 	).
 
-%%	facet_condition(+Facets, ?Resource, -Goal) is det.
+%%	facet_condition(+Facets, +ResultSet, ?Resource, -Goal) is det.
 %
 %	Goal is an executable representation of   the  current Facets on
 %	Resource.  Goal itself is semidet.
 %
-%	@param Facets is a list of prop(P,Values)
+%	@param	Facets is a list of prop(P,Values)
 
-facet_condition([], _, true).
-facet_condition([prop(P, Values)|T], R, (Goal->Rest)) :-
-	findall(V, (member(V0, Values), owl_sameas(V0, V)), AllValues),
-	pred_filter(AllValues, P, R, Goal),
-	facet_condition(T, R, Rest).
+facet_condition([], _, _, true).
+facet_condition([prop(P, Values)|T], Results, R, (Goal->Rest)) :-
+	(   Values == ['__null']
+	->  Goal = (\+ rdf_has(R,P,_))
+	;   Values == ['__single']
+	->  Goal = ( rdf_has(R,P,V),
+	    	     \+ ( rdf_has(R2,P,V),
+			  memberchk(R2, Results),
+			  R\==R2
+			)
+		   )
+	;   findall(V, (member(V0, Values), owl_sameas(V0, V)), AllValues),
+	    pred_filter(AllValues, P, R, Goal)
+	),
+	facet_condition(T, Results, R, Rest).
 
 pred_filter([Value], P, R, Goal) :- !,
 	Goal = rdf_has(R, P, Value).
@@ -222,9 +265,15 @@ pred_filter([Value|Vs], P, R, Goal) :-
 
 facet_balance(facet(_P, V_R, _Selected), Balance) :-
 	pairs_values(V_R, RLs),
-	maplist(length, RLs, Counts),
+	maplist(object_count, RLs, Counts),
 	list_variance(Counts, Var),
 	Balance is 1 - (Var/(1+Var)).
+
+object_count(Results, Count) :-
+	(   integer(Results)
+	->  Count = Results
+	;   length(Results, Count)
+	).
 
 facet_object_cardinality(facet(_P, V_R, _Selected), Card) :-
 	Mu = 10,
@@ -237,10 +286,13 @@ facet_object_cardinality(facet(_P, V_R, _Selected), Card) :-
 
 facet_frequency(facet(_P, V_R, _Selected), Total, Freq) :-
 	pairs_values(V_R, RLs),
-	append(RLs, AllResults),
+	partition(integer, RLs, Counts, Lists),
+	append(Lists, AllResults),
 	sort(AllResults, Unique),
 	length(Unique, UniqueCount),
-	Freq is UniqueCount/Total.
+	sumlist(Counts, CountSum),	% May *not* be independent
+	Freq is (UniqueCount+CountSum)/Total.
+
 
 %%	facet_weight(?P, ?Weight)
 %
