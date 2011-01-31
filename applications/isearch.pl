@@ -54,7 +54,7 @@
 :- use_module(components(label)).
 
 :- multifile
-	cliopatria:format_search_result/3,
+	cliopatria:format_search_result/4,      % +Result, +Graph
 	cliopatria:search_pattern/3.		% +Start, -Result, -Graph
 
 :- rdf_meta
@@ -186,6 +186,7 @@ isearch_page2(Options, Request) :-
 
  	    html_result_page(QueryParams,
 			     result(LimitedResults, NumberOfResults, NumberOfRelationResults),
+			     Graph,
 			     MatchingTerms, RelatedTerms,
 			     MatchingRelations, Facets, Options)
   	).
@@ -599,14 +600,14 @@ html_start_page(Class) :-
 				      \isearch_field('', Class))])
 			]).
 
-%%	html_result_page(+Query, +Terms, +Class, +Relations, +Filter,
-%%	+Offset, +Limit)
+%%	html_result_page(+Query, +Graph, +Terms, +Relations, +Relation,
+%%	+Facets, +Options)
 %
 %	Emit an html page with a search field,
 %	a left column with query suggestions, a body with the search
 %	results and a right column with faceted filters.
 
-html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets, Options) :-
+html_result_page(QueryObj, ResultObj, Graph, Terms, RelatedTerms, Relations, Facets, Options) :-
 	QueryObj = query(Keyword,
 			 Class, SelectedTerms, SelectedRelations, Filter,
 			 Offset, Limit),
@@ -628,7 +629,7 @@ html_result_page(QueryObj, ResultObj, Terms, RelatedTerms, Relations, Facets, Op
 								     NumberOfRelationResults)
 					       ]),
 					   div(class(body),
-					       ol(\html_result_list(Results))),
+					       ol(\html_result_list(Results, Graph))),
 					   div(class(footer),
 					       \html_paginator(NumberOfResults, Offset, Limit))
 					 ]),
@@ -699,18 +700,18 @@ isearch_field(Query, Class) -->
 		   input([type(submit), class(btn), value(search)])
 		  ])).
 
-%%	html_result_list(+Resources)
+%%	html_result_list(+Resources, +Graph)
 %
 %	Emit HTML list with resources.
 
-html_result_list([]) --> !.
-html_result_list([R|Rs]) -->
-	html(li(class(r), \format_result(R))),
-	html_result_list(Rs).
+html_result_list([], _) --> !.
+html_result_list([R|Rs], Graph) -->
+	html(li(class(r), \format_result(R, Graph))),
+	html_result_list(Rs, Graph).
 
-format_result(R) -->
-	cliopatria:format_search_result(R).
-format_result(R) -->
+format_result(R, Graph) -->
+	cliopatria:format_search_result(R, Graph).
+format_result(R, _) -->
 	html(div(class('result-item'),
 		 [ div(class(thumbnail),
 		       \result_image(R)),
