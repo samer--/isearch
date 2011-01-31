@@ -90,6 +90,12 @@
 :- setting(search:relation_limit, integer, 5,
 	  'Maximum number of relations shown').
 
+% search patterns
+:- setting(search:pattern_literal, boolean, true,
+	   'Find results by a direct literal property').
+:- setting(search:pattern_resource, boolean, true,
+	   'Find results by an object property from which the resource has a matching label').
+
 :- http_handler(root(isearch), isearch_page([]), [id(isearch)]).
 
 %%	isearch_page(+Options, +Request)
@@ -312,6 +318,7 @@ search_pattern(Label, Target,
 	       [ rdf(TN, PN, literal(Value))
 	       | More
 	       ]) :-
+	setting(search:pattern_literal, true),
 	rdf(TN, PN, literal(exact(Label), Value)),
 	(   (rdf_is_bnode(TN)
 	    ;rdf_equal(rdf:value, PN)
@@ -327,6 +334,7 @@ search_pattern(Label, Target,
 		 rdf(Term, LP, literal(Value))
 	       | More
 	       ]) :-
+	setting(search:pattern_resource, true),
 	rdf_has(Term, rdfs:label, literal(exact(Label), Value), LP),
 	rdf(TN, PN, Term),
 	(   rdf_is_bnode(TN),
