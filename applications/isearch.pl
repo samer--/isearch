@@ -629,7 +629,8 @@ html_result_page(QueryObj, ResultObj, Graph, Terms, RelatedTerms, Relations, Fac
 								     NumberOfRelationResults)
 					       ]),
 					   div(class(body),
-					       ol(\html_result_list(Results, Graph))),
+					       ol(class('result-list'),
+						  \html_result_list(Results, Graph))),
 					   div(class(footer),
 					       \html_paginator(NumberOfResults, Offset, Limit))
 					 ]),
