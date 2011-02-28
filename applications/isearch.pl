@@ -992,13 +992,19 @@ resource_list(Rs, Selected) -->
 resource_items([], _) --> !.
 resource_items([V|T], Selected) -->
 	{ resource_term_count(V, R, Count),
-	  (   R == '__skipped'
-	  ->  Label = '<skipped>'
-	  ;   rdf_display_label(R, Label)
-	  )
+	  resource_label(R, Label)
 	},
 	resource_item(R, Label, Count, Selected),
  	resource_items(T, Selected).
+
+resource_label('__skipped',
+	       i(title('Skipped values'), '<skipped>')) :- !.
+resource_label('__null',
+	       i(title('Results with no value on this facet'), '<no value>')) :- !.
+resource_label('__single',
+	       i(title('Facet values that reference a single result'), '<unique object>')) :- !.
+resource_label(R, Label) :-
+	rdf_display_label(R, Label).
 
 resource_term_count(Count-R, R, Count) :- !.
 resource_term_count(R, R, '').
@@ -1045,8 +1051,12 @@ resource_item_content(Label, Count, Img) -->
 	     ]).
 
 resource_label(FullLabel) -->
-	{ truncate_atom(FullLabel, 75, Label) },
+	{ atom(FullLabel), !,
+	  truncate_atom(FullLabel, 75, Label)
+	},
 	html(span([title(FullLabel), class(label)], Label)).
+resource_label(FullLabel) -->
+	html(FullLabel).
 
 %%	toggle_link(+ToggleId, +BodyId, +ActiveLabel, +ToggleLabel)
 %
