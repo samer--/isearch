@@ -701,30 +701,31 @@ isearch_field(Query, Class) -->
 		   input([type(submit), class(btn), value(search)])
 		  ])).
 
-%%	html_result_list(+Resources, +Graph)
+%%	html_result_list(+Resources, +Graph:list(rdf(s,p,o)))
 %
 %	Emit HTML list with resources.
 
 html_result_list([], _) --> !.
 html_result_list([R|Rs], Graph) -->
-	html(li(class(r), \format_result(R, Graph))),
+	html(li(class(r),
+		[ div(class('result-item'),
+		      \result_item(R, Graph)),
+		  br(clear(all))
+		])),
 	html_result_list(Rs, Graph).
 
-format_result(R, Graph) -->
-	html([ div(class('result-item',
-		       \(cliopatria:format_search_result(R, Graph)))),
-	       br(clear(all))
-	     ]), !.
-format_result(R, _) -->
-	html(div(class('result-item'),
-		 [ div(class(thumbnail),
-		       \result_image(R)),
-		   div(class(text),
-		       [ div(class(title),       \rdf_link(R, [max_length(120)])),
-			 div(class(subtitle),    \result_subtitle(R)),
-			 div(class(description), \result_description(R))
-		       ])
-		 ])).
+
+result_item(R, Graph) -->
+	cliopatria:format_search_result(R, Graph), !.
+result_item(R, _Graph) -->
+	html([ div(class(thumbnail),
+		   \result_image(R)),
+	       div(class(text),
+		   [ div(class(title),       \rdf_link(R, [max_length(120)])),
+		     div(class(subtitle),    \result_subtitle(R)),
+		     div(class(description), \result_description(R))
+		   ])
+	     ]).
 
 
 result_subtitle(R) -->
