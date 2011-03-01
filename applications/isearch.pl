@@ -721,7 +721,10 @@ result_item(R, _Graph) -->
 	html([ div(class(thumbnail),
 		   \result_image(R)),
 	       div(class(text),
-		   [ div(class(title),       \rdf_link(R, [max_length(120)])),
+		   [ div(class(title),       \rdf_link(R,
+						       [ resource_format(label),
+							 max_length(120)
+						       ])),
 		     div(class(subtitle),    \result_subtitle(R)),
 		     div(class(description), \result_description(R))
 		   ])
