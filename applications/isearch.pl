@@ -54,7 +54,7 @@
 :- use_module(components(label)).
 
 :- multifile
-	cliopatria:format_search_result//2,	% +Result, +Graph
+	cliopatria:format_search_result//3,	% +Result, +Query, +Graph
 	cliopatria:search_pattern/3.		% +Start, -Result, -Graph
 
 :- rdf_meta
@@ -630,7 +630,7 @@ html_result_page(QueryObj, ResultObj, Graph, Terms, RelatedTerms, Relations, Fac
 					       ]),
 					   div(class(body),
 					       ol(class('result-list'),
-						  \html_result_list(Results, Graph))),
+						  \html_result_list(Results, QueryObj, Graph))),
 					   div(class(footer),
 					       \html_paginator(NumberOfResults, Offset, Limit))
 					 ]),
@@ -701,23 +701,23 @@ isearch_field(Query, Class) -->
 		   input([type(submit), class(btn), value(search)])
 		  ])).
 
-%%	html_result_list(+Resources, +Graph:list(rdf(s,p,o)))
+%%	html_result_list(+Resources, +Query, +Graph:list(rdf(s,p,o)))
 %
 %	Emit HTML list with resources.
 
-html_result_list([], _) --> !.
-html_result_list([R|Rs], Graph) -->
+html_result_list([], _, _) --> !.
+html_result_list([R|Rs], Query, Graph) -->
 	html(li(class(r),
 		[ div(class('result-item'),
-		      \result_item(R, Graph)),
+		      \result_item(R, Query, Graph)),
 		  br(clear(all))
 		])),
-	html_result_list(Rs, Graph).
+	html_result_list(Rs, Query, Graph).
 
 
-result_item(R, Graph) -->
-	cliopatria:format_search_result(R, Graph), !.
-result_item(R, _Graph) -->
+result_item(R, Query, Graph) -->
+	cliopatria:format_search_result(R, Query, Graph), !.
+result_item(R, _Query, _Graph) -->
 	html([ div(class(thumbnail),
 		   \result_image(R)),
 	       div(class(text),
@@ -1297,11 +1297,11 @@ image_suffix('&resize100square').
 		 *	      HOOKS		*
 		 *******************************/
 
-%%	cliopatria:format_search_result(+Resource)//
+%%	cliopatria:format_search_result(+Resource, +Query, +Graph)//
 %
 %	Emit HTML for the presentation of Resource as a search result.
 %
-%       @see This hook is used by format_result//1.
+%       @see This hook is used by result_item//3.
 
 %%	cliopatria:search_pattern(+Start, -Result, -Graph) is nondet.
 %
