@@ -4,7 +4,7 @@
     E-mail:        M.Hildebrand@vu.nl
     WWW:           http://www.few.vu.nl/~michielh
     Copyright (C): 2010, CWI Amsterdam,
-		   	 VU University Amsterdam
+			 VU University Amsterdam
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -49,6 +49,8 @@
 :- use_module(library(semweb/rdf_abstract)).
 :- use_module(library(settings)).
 :- use_module(library(apply)).
+:- use_module(library(jquery), []).	% declaration of jquery resources
+					% from jquery cpack
 
 :- use_module(library(search/facet)).
 :- use_module(components(label)).
@@ -59,7 +61,7 @@
 
 :- rdf_meta
 	isearch_field(+,r,?,?),
-       	cliopatria:facet_exclude_property(r).
+	cliopatria:facet_exclude_property(r).
 
 % declare application settings
 %
@@ -139,7 +141,7 @@ isearch_page2(Options, Request) :-
 				   [ zero_or_more,
 				     description('Limit results by specific relation')
 				   ]),
- 			  filter(Filter,
+			  filter(Filter,
 				 [ default([]), json,
 				   description('Filters on the result set')
 				 ]),
@@ -184,12 +186,12 @@ isearch_page2(Options, Request) :-
 	    result_relations(ResultsWithTerm, Graph, MatchingRelations),
 	    related_terms(Terms, Class, RelatedTerms),
 
- 	    html_result_page(QueryParams,
+	    html_result_page(QueryParams,
 			     result(LimitedResults, NumberOfResults, NumberOfRelationResults),
 			     Graph,
 			     MatchingTerms, RelatedTerms,
 			     MatchingRelations, Facets, Options)
-  	).
+	).
 
 compute_facets(Results, AllResults, Filter, Facets) :-
 	facets(Results, AllResults, Filter, ActiveFacets0, InactiveFacets0),
@@ -326,7 +328,7 @@ search_pattern(Label, Target,
 	    ),
 	    rdf_has(Target, P, TN)
 	*-> More = [ rdf(Target, P, TN) ]
- 	;   TN = Target,
+	;   TN = Target,
 	    PN = P,
 	    More = []
 	).
@@ -614,12 +616,12 @@ html_result_page(QueryObj, ResultObj, Graph, Terms, RelatedTerms, Relations, Fac
 	ResultObj = result(Results, NumberOfResults, NumberOfRelationResults),
 	reply_html_page(user(isearch),
 			[ title(['Search results for ', Keyword])
- 			],
+			],
 			[  \html_requires(css('interactive_search.css')),
-			   \html_requires(js('jquery-1.4.2.min.js')),
+			   \html_requires(jquery),
 			   \html_requires(js('json2.js')),
 			   \html_header(Keyword, Class, Options),
- 			   div(id(main),
+			   div(id(main),
 			       div(class('main-content'),
 				   [ \html_term_list(Terms, RelatedTerms, SelectedTerms),
 				     div(id(results),
@@ -638,13 +640,13 @@ html_result_page(QueryObj, ResultObj, Graph, Terms, RelatedTerms, Relations, Fac
 				   ])),
 			   script(type('text/javascript'),
 				  [ \script_body_toggle,
- 				    \script_data(Keyword, Class, SelectedTerms, SelectedRelations, Filter),
+				    \script_data(Keyword, Class, SelectedTerms, SelectedRelations, Filter),
 				    \script_term_select(terms),
 				    \script_relation_select(relations),
 				    \script_facet_select(facets),
 				    \script_suggestion_select(suggestions),
 				    \script_filter_select(filters)
- 				  ])
+				  ])
 			]).
 
 html_header(_Keyword, _Class, Options) -->
@@ -820,11 +822,11 @@ html_pages(N, N, _, _, _) --> !.
 html_pages(N, Pages, Limit, URL, ActivePage) -->
 	{ N1 is N+1,
 	  Offset is N*Limit,
- 	  (   N = ActivePage
+	  (   N = ActivePage
 	  ->  Class = active
 	  ;   Class = ''
 	  )
- 	},
+	},
 	html(span(class(Class), a(href(URL+'&offset='+Offset), N1))),
 	html_pages(N1, Pages, Limit, URL, ActivePage).
 
@@ -836,13 +838,13 @@ html_term_list([], _) --> !.
 html_term_list(Terms, Selected) -->
 	{ setting(search:term_limit, Limit),
 	  list_limit(Terms, Limit, TopN, Rest)
-   	},
+	},
 	html(div(id(terms),
 		[ div(class(header), 'Did you mean?'),
 		  div(class(items),
 		      [ \resource_list(TopN, Selected),
 			\resource_rest_list(Rest, term, Selected)
- 		      ])
+		      ])
 		])).
 
 %%	html_relation_list(+Relations, +Selected, +NumberOfResults)
@@ -856,7 +858,7 @@ html_relation_list([], _, NumberOfResults) --> !,
 html_relation_list(Relations, Selected, NumberOfResults) -->
 	{ setting(search:relation_limit, Limit),
 	  list_limit(Relations, Limit, TopN, Rest)
- 	},
+	},
 	html(div(id(relations),
 		 [ div(class('relations-header'),
 		       [ NumberOfResults, ' result found by: ' ]),
@@ -878,8 +880,8 @@ html_related_terms([], _) --> !.
 html_related_terms([P-Terms|T], N) -->
 	{ N1 is N+1,
 	  rdfs_label(P, Label),
- 	  list_limit(Terms, 3, TopN, Rest)
- 	},
+	  list_limit(Terms, 3, TopN, Rest)
+	},
 	html(div(class(suggestion),
 		 [ div(class(header), Label),
 		   div([title(P), class(items)],
@@ -898,7 +900,7 @@ html_facets([facet(P, ResultsByValue, Selected)|Fs], N) -->
 	{ N1 is N+1,
 	  pairs_sort_by_result_count(ResultsByValue, AllValues),
 	  top_bottom(5, 5, AllValues, Values)
-  	},
+	},
 	html(div(class(facet),
 		 [ div(class(header), \rdf_link(P)),
 		   div([title(P), class(items)],
@@ -953,8 +955,8 @@ property_values([V|Vs]) -->
 		div(class('value-inner'),
 		   [ img([class(checkbox), src(Img)], []),
 		     \resource_label(Label)
- 		   ]))),
- 	property_values(Vs).
+		   ]))),
+	property_values(Vs).
 
 remove_single_value_facet([], []) :- !.
 remove_single_value_facet([facet(_, [_], [])|Fs], Rest) :- !,
@@ -1002,7 +1004,7 @@ resource_items([V|T], Selected) -->
 	  resource_label(R, Label)
 	},
 	resource_item(R, Label, Count, Selected),
- 	resource_items(T, Selected).
+	resource_items(T, Selected).
 
 resource_label('__skipped',
 	       i(title('Skipped values'), '<skipped>')) :- !.
@@ -1054,7 +1056,7 @@ resource_item_content(Label, Count, Img) -->
 	       div(class('value-inner'),
 		   [ img([class(checkbox), src(Img)], []),
 		     \resource_label(Label)
- 		   ])
+		   ])
 	     ]).
 
 resource_label(FullLabel) -->
@@ -1077,7 +1079,7 @@ toggle_link(ToggleId, BodyId, Label, Shown, Hidden) -->
 
 
 		 /*******************************
-		 *	    JAVASCRIPT      	*
+		 *	    JAVASCRIPT		*
 		 *******************************/
 
 script_data(Query, Class, Terms, Relations, Filter) -->
@@ -1094,7 +1096,7 @@ script_data(Query, Class, Terms, Relations, Filter) -->
 	  with_output_to(string(Data),
 		       json_write(current_output, Params, []))
 	},
- 	html(\[
+	html(\[
 'var data = ',Data,';\n',
 
 'var isEqualLiteral = function(o1,o2) {\n',
@@ -1221,7 +1223,7 @@ request_url_components(Request, [ protocol(http),
 	http_current_host(Request, Host, Port,
 			  [ global(false)
 			  ]),
- 	(   option(x_redirected_path(Path), Request)
+	(   option(x_redirected_path(Path), Request)
 	->  true
 	;   option(path(Path), Request, /)
 	),
@@ -1233,7 +1235,7 @@ request_url_components(Request, [ protocol(http),
 %	elements in the value list.
 
 pairs_sort_by_result_count(Grouped, Sorted) :-
- 	pairs_result_count(Grouped, Counted),
+	pairs_result_count(Grouped, Counted),
 	keysort(Counted, Sorted0),
 	reverse(Sorted0, Sorted).
 
