@@ -329,7 +329,6 @@ search_pattern(Label, Target,
 	    rdf_has(Target, P, TN)
 	*-> More = [ rdf(Target, P, TN) ]
 	;   TN = Target,
-	    PN = P,
 	    More = []
 	).
 search_pattern(Label, Target,
@@ -344,7 +343,6 @@ search_pattern(Label, Target,
 	    rdf_has(Target, P, TN)
 	*-> More = [ rdf(Target, P, TN) ]
 	;   TN = Target,
-	    PN = P,
 	    More = []
 	).
 search_pattern(Label, Target, Graph) :-
@@ -788,10 +786,10 @@ html_paginator(Total, Offset, Limit) -->
 	  ),
 	  StartPage is max(0, EndPage-20),
 	  (   select(search(Search0), URLComponents, Cs)
-	  ->  delete(Search0, offset=_, Search)
-	  ;   Search = Search0
-	  ),
-	  parse_url(URL, [search(Search)|Cs])
+	  ->  delete(Search0, offset=_, Search),
+	      parse_url(URL, [search(Search)|Cs])
+	  ;   parse_url(URL, URLComponents)
+	  )
 	},
 	html(div(class(paginator),
 		 [ \prev_page(ActivePage, Limit, URL),
