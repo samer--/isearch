@@ -696,9 +696,9 @@ logo -->
 %	interactive search application.
 
 isearch_field(Query, Class) -->
-	html(form([input([type(text), class(inp), name(q), value(Query)]),
-		   input([type(hidden), name(class), value(Class)]),
-		   input([type(submit), class(btn), value(search)])
+	html(form([input([type(search), class(inp), name(q), value(Query),placeholder('Search')]),
+		   input([type(hidden), name(class), value(Class)])
+         %input([type(submit), class(btn), value(search)])
 		  ])).
 
 %%	html_result_list(+Resources, +Query, +Graph:list(rdf(s,p,o)))
